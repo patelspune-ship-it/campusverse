@@ -11,8 +11,26 @@ const userSchema = new mongoose.Schema({
     enum: ["student", "club_admin", "faculty", "super_admin"],
     default: "student",
   },
+
   // Nullable for super_admin; links user to one of the 18 institutes
-  institute_id: { type: String, default: null },
+  institute_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Institute",
+    default: null,
+  },
+
+  // For club_admin: which club they manage
+  club_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Club",
+    default: null,
+  },
+
+  // true = user must change their password on next login (e.g. seeded club admins)
+  must_change_password: { type: Boolean, default: false },
+
+  // true = user has completed their profile setup
+  profile_completed: { type: Boolean, default: false },
 });
 
 export default mongoose.model("User", userSchema);

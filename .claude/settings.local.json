@@ -7,7 +7,8 @@
       "Bash(npm install:*)",
       "Bash(node -e \"const p = require\\('./package.json'\\); const deps = {...p.dependencies, ...p.devDependencies}; const pkgs = ['qrcode','qrcode.react','html5-qrcode','puppeteer','nodemailer','node-cron','cloudinary','multer','multer-storage-cloudinary']; pkgs.forEach\\(pkg => console.log\\(pkg + ': ' + \\(deps[pkg] || 'MISSING'\\)\\)\\)\")",
       "Bash(node seed.js)",
-      "Bash(node fixindex.js)"
+      "Bash(node fixindex.js)",
+      "Bash(node seedAll.js)"
     ]
   }
 }
