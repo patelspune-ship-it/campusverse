@@ -1,4 +1,7 @@
-export const API_URL = "http://localhost:5000"; // backend server
+// Vite dev server proxies /api → http://localhost:5000 internally.
+// So API calls use the same origin as the page — no hardcoded port needed.
+// https://192.168.29.150:8080/api/... → proxy → http://localhost:5000/api/...
+export const API_URL = window.location.origin;
 
 /** JSON requests — automatically attaches Bearer token */
 export async function apiRequest(path: string, method = "GET", body?: any) {

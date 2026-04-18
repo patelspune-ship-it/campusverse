@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { API_URL as BASE_URL } from "../lib/api";
 
-const API_URL = "http://localhost:5000/api/auth";
+const API_URL = `${BASE_URL}/api/auth`;
 
 interface RegisterPayload {
   userId: string;
