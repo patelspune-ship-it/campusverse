@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calendar, MapPin, Users, ImageOff, IndianRupee } from "lucide-react";
+import { Calendar, MapPin, Users, ImageOff, IndianRupee, QrCode, Download, X } from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "@/lib/api";
 
@@ -46,16 +46,19 @@ const EventCard = ({
   isRegistered = false, onRegisterSuccess,
 }: EventCardProps) => {
   const navigate = useNavigate();
+  const user     = JSON.parse(localStorage.getItem("cv_user") || "null");
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [agreed, setAgreed]         = useState(false);
   const [loading, setLoading]       = useState(false);
   const [registered, setRegistered] = useState(isRegistered);
+  const [qrOpen, setQrOpen]         = useState(false);
+  const [qrUrl, setQrUrl]           = useState<string | null>(null);
 
   const isPast  = new Date(date) < new Date();
   const isFull  = registrationCount >= max_participants;
 
   const handleRegisterClick = () => {
-    const user = JSON.parse(localStorage.getItem("cv_user") || "null");
     if (!user) {
       toast.error("Please sign in to register for events");
       navigate("/auth");
@@ -76,9 +79,11 @@ const EventCard = ({
       const res = await apiRequest(`/api/events/${id}/register`, "POST");
       if (res.registration || res.message === "Registered successfully!") {
         setRegistered(true);
-        toast.success("Registered! Check your dashboard for details.");
         setDialogOpen(false);
         onRegisterSuccess?.(id);
+        // Poll for QR (generated async on server — usually ready within 3 s)
+        toast.success("Registered! Your QR code is being generated…");
+        pollForQr(res.registration?._id);
       } else {
         toast.error(res.message ?? "Registration failed");
       }
@@ -86,6 +91,41 @@ const EventCard = ({
       toast.error("Server error. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const pollForQr = (regId?: string) => {
+    if (!regId) return;
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const regs = await apiRequest("/api/student/my-registrations");
+        const reg  = Array.isArray(regs) ? regs.find((r: any) => r._id === id) : null;
+        if (reg?.qr_code_path) {
+          clearInterval(interval);
+          setQrUrl(reg.qr_code_path);
+          setQrOpen(true);
+          toast.success("QR code ready!", { duration: 2000 });
+        }
+      } catch { /* ignore */ }
+      if (attempts >= 10) clearInterval(interval); // give up after ~15 s
+    }, 1500);
+  };
+
+  const handleDownloadQr = async () => {
+    if (!qrUrl) return;
+    try {
+      const res  = await fetch(qrUrl);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `QR_${name.replace(/\s+/g, "_")}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      window.open(qrUrl, "_blank");
     }
   };
 
@@ -175,6 +215,45 @@ const EventCard = ({
           </Button>
         </CardFooter>
       </Card>
+
+      {/* QR Code Dialog */}
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="w-5 h-5 text-primary" />
+              Your Event QR Code
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-2">
+            {qrUrl && (
+              <div className="p-3 bg-white rounded-xl border-2 border-primary/20 shadow-[var(--shadow-soft)]">
+                <img src={qrUrl} alt="QR Code" className="w-52 h-52 object-contain" />
+              </div>
+            )}
+            <div className="w-full text-center space-y-1">
+              <p className="font-bold text-base">{name}</p>
+              <p className="text-xs text-muted-foreground">{new Date(date).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}{start_time ? ` · ${start_time}` : ""}</p>
+              <p className="text-xs text-muted-foreground">{venue}</p>
+            </div>
+            <div className="w-full rounded-lg bg-muted/40 border px-4 py-2.5 text-center">
+              <p className="font-semibold text-sm">{user?.name ?? "Student"}</p>
+              <p className="text-xs text-muted-foreground">{user?.userId}</p>
+            </div>
+            <p className="text-xs text-center text-muted-foreground px-2">
+              Show this QR at the event entrance to mark your attendance.
+            </p>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" className="flex-1 gap-2" onClick={() => setQrOpen(false)}>
+              <X className="w-4 h-4" /> Close
+            </Button>
+            <Button className="flex-1 gap-2" onClick={handleDownloadQr}>
+              <Download className="w-4 h-4" /> Download QR
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Registration Confirmation Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

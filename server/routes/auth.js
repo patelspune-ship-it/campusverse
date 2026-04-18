@@ -17,8 +17,8 @@ router.post("/register", async (req, res) => {
     if (await User.findOne({ userId })) {
       return res.status(409).json({ message: "This College ID / PRN is already registered" });
     }
-    if (email && await User.findOne({ email, role: "student" })) {
-      return res.status(409).json({ message: "This email is already registered" });
+    if (email && await User.findOne({ email })) {
+      return res.status(409).json({ message: "This email is already registered. Please use a different email." });
     }
 
     const hashed = await bcrypt.hash(password, 10);
@@ -65,6 +65,13 @@ router.post("/register", async (req, res) => {
       },
     });
   } catch (err) {
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyPattern || {})[0];
+      const msg = field === "email"  ? "This email is already registered. Please use a different email."
+                : field === "userId" ? "This College ID / PRN is already registered."
+                : "A duplicate value was detected. Please check your details.";
+      return res.status(409).json({ message: msg });
+    }
     console.error("Register error:", err);
     return res.status(500).json({ message: "Server Error" });
   }

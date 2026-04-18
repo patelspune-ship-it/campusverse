@@ -1,10 +1,13 @@
 import express from "express";
 import mongoose from "mongoose";
+import jwt      from "jsonwebtoken";
+import QRCode   from "qrcode";
 import Registration from "../models/Registration.js";
 import Event        from "../models/Event.js";
 import User         from "../models/User.js";
 import { verifyToken } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
+import { uploadToCloudinary } from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -12,6 +15,11 @@ const router = express.Router();
 // POST /api/events/:id/register  (student auth required)
 router.post("/:id/register", verifyToken, requireRole("student"), async (req, res) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Invalid session" });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: "Invalid event ID" });
+    }
+
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ message: "Event not found" });
     if (event.status !== "approved") {
@@ -37,6 +45,32 @@ router.post("/:id/register", verifyToken, requireRole("student"), async (req, re
     const reg = await Registration.create({
       student_id: req.user.id,
       event_id:   event._id,
+    });
+
+    // ── Generate QR code asynchronously — don't block the response ──
+    setImmediate(async () => {
+      try {
+        const payload = {
+          registration_id: reg._id.toString(),
+          student_id:      req.user.id.toString(),
+          event_id:        event._id.toString(),
+          timestamp:       Date.now(),
+        };
+        const qrToken = jwt.sign(payload, process.env.QR_SECRET, { expiresIn: "365d" });
+
+        const qrBuffer = await QRCode.toBuffer(qrToken, {
+          type:          "png",
+          width:         400,
+          margin:        2,
+          color:         { dark: "#1a1a2e", light: "#ffffff" },
+          errorCorrectionLevel: "H",
+        });
+
+        const { url } = await uploadToCloudinary(qrBuffer, "campusverse/qrcodes");
+        await Registration.findByIdAndUpdate(reg._id, { qr_code_path: url, qr_token: qrToken });
+      } catch (qrErr) {
+        console.error("QR generation failed for reg", reg._id, qrErr.message);
+      }
     });
 
     res.status(201).json({ message: "Registered successfully!", registration: reg });

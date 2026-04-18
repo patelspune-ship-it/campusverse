@@ -40,7 +40,12 @@ router.get("/stats", async (req, res) => {
 // GET /api/student/my-registrations
 router.get("/my-registrations", async (req, res) => {
   try {
-    const registrations = await Registration.find({ student_id: req.user.id });
+    const registrations = await Registration.find({ student_id: req.user.id })
+      .select("event_id qr_code_path qr_token registered_at");
+
+    const regMap = Object.fromEntries(
+      registrations.map((r) => [r.event_id.toString(), r])
+    );
     const eventIds = registrations.map((r) => r.event_id);
 
     const events = await Event.find({
@@ -51,7 +56,18 @@ router.get("/my-registrations", async (req, res) => {
       .sort({ date: 1 })
       .populate("club_id", "name logo_url");
 
-    res.json(events);
+    const result = events.map((e) => {
+      const reg = regMap[e._id.toString()];
+      return {
+        ...e.toObject(),
+        registration_id:  reg?._id  ?? null,
+        qr_code_path:     reg?.qr_code_path ?? null,
+        qr_token:         reg?.qr_token     ?? null,
+        registered_at:    reg?.registered_at ?? null,
+      };
+    });
+
+    res.json(result);
   } catch {
     res.status(500).json({ message: "Server error" });
   }

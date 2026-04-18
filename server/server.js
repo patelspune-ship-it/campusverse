@@ -19,7 +19,8 @@ import publicRoutes from "./routes/public.js";
 import studentRoutes from "./routes/student.js";
 import clubRoutes    from "./routes/club.js";
 import facultyRoutes from "./routes/faculty.js";
-import adminRoutes   from "./routes/admin.js";
+import adminRoutes      from "./routes/admin.js";
+import attendanceRoutes from "./routes/attendance.js";
 
 // ✅ MongoDB Connection
 async function connectDB() {
@@ -44,8 +45,9 @@ app.use("/api/public", publicRoutes);
 // ✅ Role-scoped routes (RBAC enforced inside each router)
 app.use("/api/student", studentRoutes);
 app.use("/api/club", clubRoutes);
-app.use("/api/faculty", facultyRoutes);
-app.use("/api/admin", adminRoutes);
+app.use("/api/faculty",     facultyRoutes);
+app.use("/api/admin",      adminRoutes);
+app.use("/api/attendance", attendanceRoutes);
 
 // Test Route
 app.get("/", (req, res) => res.send("CampusVerse API Running ✅"));

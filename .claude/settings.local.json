@@ -9,7 +9,21 @@
       "Bash(node seed.js)",
       "Bash(node fixindex.js)",
       "Bash(node seedAll.js)",
-      "Bash(node createAdmin.js)"
+      "Bash(node createAdmin.js)",
+      "Bash(xargs cat *)",
+      "Bash(curl -s http://localhost:5000/api/public/institutes)",
+      "Bash(curl -s http://localhost:5000/)",
+      "Bash(curl -s http://localhost:5000/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"userId\":\"test\",\"password\":\"test\"}')",
+      "Bash(curl -s http://localhost:5000/api/auth/register -X POST -H \"Content-Type: application/json\" -d '{\"userId\":\"TEST001\",\"email\":\"test@test.com\",\"password\":\"password123\",\"name\":\"Test User\",\"department\":\"CS\",\"year\":\"1\",\"institute_id\":\"000000000000000000000001\"}')",
+      "Bash(curl -s -X POST http://localhost:5000/api/auth/register -H \"Content-Type: application/json\" -d \"{\\\\\"userId\\\\\":\\\\\"ADT25SOCB0999\\\\\",\\\\\"email\\\\\":\\\\\"newstudent@mitadt.edu\\\\\",\\\\\"password\\\\\":\\\\\"Test@1234\\\\\",\\\\\"name\\\\\":\\\\\"New Student\\\\\",\\\\\"department\\\\\":\\\\\"Computer Science\\\\\",\\\\\"year\\\\\":\\\\\"2\\\\\",\\\\\"institute_id\\\\\":\\\\\"69e336979adf9cf0751ae68c\\\\\",\\\\\"mobile\\\\\":null}\")",
+      "Bash(curl -s http://localhost:5000/api/public/events/upcoming)",
+      "Bash(python -m json.tool)",
+      "Bash(node --input-type=module)",
+      "Bash(2>&1)",
+      "Bash(curl -sv http://localhost:5000/api/public/events/upcoming)",
+      "Bash(curl -s http://localhost:5000/api/public/clubs)",
+      "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\);const j=JSON.parse\\(d\\);j.forEach\\(e=>console.log\\('Event:',e.name,'| club:',e.club_id?.name,'| status:',e.status,'| date:',e.date,'| regCount:',e.registrationCount\\)\\);\")",
+      "Bash(node -e \"const crypto = require\\('crypto'\\); console.log\\(crypto.randomBytes\\(48\\).toString\\('hex'\\)\\);\")"
     ]
   }
 }

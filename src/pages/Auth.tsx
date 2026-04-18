@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -89,34 +90,46 @@ const Auth = () => {
 
   // ── Signup submit ─────────────────────────────────────────
   const onSignup = async (values: SignupValues) => {
+    // Explicitly pull select-driven fields via getValues so they're never undefined
+    const allValues = signupForm.getValues();
+    const institute_id = allValues.institute_id || values.institute_id;
+    const year         = allValues.year         || values.year;
+
+    if (!institute_id) { toast.error("Please select your institute"); return; }
+    if (!year)         { toast.error("Please select your year");      return; }
+
     setSignupLoading(true);
     try {
       const res = await fetch("http://localhost:5000/api/auth/register", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({
-          userId:      values.userId,
-          email:       values.email,
-          mobile:      values.mobile || null,
-          password:    values.password,
-          name:        values.name,
-          department:  values.department,
-          year:        values.year,
-          institute_id: values.institute_id,
+          userId:       values.userId,
+          email:        values.email,
+          mobile:       values.mobile || null,
+          password:     values.password,
+          name:         values.name,
+          department:   values.department,
+          year,
+          institute_id,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.message); return; }
 
-      // Auto-login: backend returns token + user
+      let data: any;
+      try { data = await res.json(); } catch { data = {}; }
+
+      if (!res.ok) {
+        toast.error(data.message || `Error ${res.status}`);
+        return;
+      }
       if (data.token) {
         localStorage.setItem("cv_token", data.token);
         localStorage.setItem("cv_user",  JSON.stringify(data.user));
         toast.success("Account created! Welcome to CampusVerse!");
         navigate("/dashboard");
       }
-    } catch {
-      toast.error("Server error. Please try again.");
+    } catch (err: any) {
+      toast.error(err?.message || "Network error. Is the server running?");
     } finally {
       setSignupLoading(false);
     }
@@ -208,113 +221,120 @@ const Auth = () => {
             </Form>
           ) : (
             /* ── SIGNUP FORM ──────────────────────────────── */
-            <Form {...signupForm}>
-              <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-4">
-                <FormField control={signupForm.control} name="name" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name *</FormLabel>
-                    <FormControl><Input placeholder="Rohan Sharma" className="h-11" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+            <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-4">
+              {/* Full Name */}
+              <div className="space-y-2">
+                <Label htmlFor="s-name">Full Name *</Label>
+                <Input id="s-name" placeholder="Rohan Sharma" className="h-11" {...signupForm.register("name")} />
+                {signupForm.formState.errors.name && (
+                  <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.name.message}</p>
+                )}
+              </div>
 
-                <FormField control={signupForm.control} name="email" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email Address *</FormLabel>
-                    <FormControl><Input type="email" placeholder="you@mitadt.edu" className="h-11" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="s-email">Email Address *</Label>
+                <Input id="s-email" type="email" placeholder="you@mitadt.edu" className="h-11" {...signupForm.register("email")} />
+                {signupForm.formState.errors.email && (
+                  <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.email.message}</p>
+                )}
+              </div>
 
-                <FormField control={signupForm.control} name="userId" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>College ID / PRN *</FormLabel>
-                    <FormControl><Input placeholder="ADT24SOCB0126" className="h-11" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+              {/* College ID */}
+              <div className="space-y-2">
+                <Label htmlFor="s-userId">College ID / PRN *</Label>
+                <Input id="s-userId" placeholder="ADT24SOCB0126" className="h-11" {...signupForm.register("userId")} />
+                {signupForm.formState.errors.userId && (
+                  <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.userId.message}</p>
+                )}
+              </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField control={signupForm.control} name="password" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password *</FormLabel>
-                      <FormControl><Input type="password" placeholder="Min 8 chars" className="h-11" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-
-                  <FormField control={signupForm.control} name="confirm" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Confirm *</FormLabel>
-                      <FormControl><Input type="password" placeholder="Repeat" className="h-11" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
+              {/* Password + Confirm */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="s-password">Password *</Label>
+                  <Input id="s-password" type="password" placeholder="Min 8 chars" className="h-11" {...signupForm.register("password")} />
+                  {signupForm.formState.errors.password && (
+                    <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.password.message}</p>
+                  )}
                 </div>
-
-                <FormField control={signupForm.control} name="institute_id" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Institute *</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="h-11"><SelectValue placeholder="Select your institute" /></SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {institutes.map((i) => (
-                          <SelectItem key={i._id} value={i._id}>{i.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                <FormField control={signupForm.control} name="department" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Department *</FormLabel>
-                    <FormControl><Input placeholder="e.g. Computer Science" className="h-11" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField control={signupForm.control} name="year" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Year *</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="h-11"><SelectValue placeholder="Year" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="1">1st Year</SelectItem>
-                          <SelectItem value="2">2nd Year</SelectItem>
-                          <SelectItem value="3">3rd Year</SelectItem>
-                          <SelectItem value="4">4th Year</SelectItem>
-                          <SelectItem value="5">5th Year</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-
-                  <FormField control={signupForm.control} name="mobile" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone (optional)</FormLabel>
-                      <FormControl><Input type="tel" placeholder="9876543210" className="h-11" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
+                <div className="space-y-2">
+                  <Label htmlFor="s-confirm">Confirm *</Label>
+                  <Input id="s-confirm" type="password" placeholder="Repeat" className="h-11" {...signupForm.register("confirm")} />
+                  {signupForm.formState.errors.confirm && (
+                    <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.confirm.message}</p>
+                  )}
                 </div>
+              </div>
 
-                <Button
-                  type="submit"
-                  className="w-full h-12 text-base font-semibold shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-strong)] transition-all"
-                  disabled={signupLoading}
+              {/* Institute */}
+              <div className="space-y-2">
+                <Label>Institute *</Label>
+                <Select
+                  value={signupForm.watch("institute_id")}
+                  onValueChange={(v) => signupForm.setValue("institute_id", v, { shouldValidate: true })}
                 >
-                  {signupLoading ? "Creating account…" : "Create Account & Continue"}
-                </Button>
-              </form>
-            </Form>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Select your institute" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {institutes.map((i) => (
+                      <SelectItem key={i._id} value={i._id}>{i.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {signupForm.formState.errors.institute_id && (
+                  <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.institute_id.message}</p>
+                )}
+              </div>
+
+              {/* Department */}
+              <div className="space-y-2">
+                <Label htmlFor="s-dept">Department *</Label>
+                <Input id="s-dept" placeholder="e.g. Computer Science" className="h-11" {...signupForm.register("department")} />
+                {signupForm.formState.errors.department && (
+                  <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.department.message}</p>
+                )}
+              </div>
+
+              {/* Year + Mobile */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Year *</Label>
+                  <Select
+                    value={signupForm.watch("year")}
+                    onValueChange={(v) => signupForm.setValue("year", v, { shouldValidate: true })}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1st Year</SelectItem>
+                      <SelectItem value="2">2nd Year</SelectItem>
+                      <SelectItem value="3">3rd Year</SelectItem>
+                      <SelectItem value="4">4th Year</SelectItem>
+                      <SelectItem value="5">5th Year</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {signupForm.formState.errors.year && (
+                    <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.year.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="s-mobile">Phone (optional)</Label>
+                  <Input id="s-mobile" type="tel" placeholder="9876543210" className="h-11" {...signupForm.register("mobile")} />
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-12 text-base font-semibold shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-strong)] transition-all"
+                disabled={signupLoading}
+              >
+                {signupLoading ? "Creating account…" : "Create Account & Continue"}
+              </Button>
+            </form>
           )}
 
           <div className="text-center mt-5">

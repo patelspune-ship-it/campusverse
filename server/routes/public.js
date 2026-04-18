@@ -25,7 +25,9 @@ router.get("/events/upcoming", async (req, res) => {
     const regCounts = await Registration.aggregate([
       { $group: { _id: "$event_id", count: { $sum: 1 } } },
     ]);
-    const regMap = Object.fromEntries(regCounts.map((r) => [r._id.toString(), r.count]));
+    const regMap = Object.fromEntries(
+      regCounts.filter((r) => r._id != null).map((r) => [r._id.toString(), r.count])
+    );
 
     res.json(
       events.map((e) => ({
@@ -83,7 +85,9 @@ router.get("/clubs/:id", async (req, res) => {
       { $match: { event_id: { $in: upcomingIds } } },
       { $group: { _id: "$event_id", count: { $sum: 1 } } },
     ]);
-    const regMap = Object.fromEntries(regCounts.map((r) => [r._id.toString(), r.count]));
+    const regMap = Object.fromEntries(
+      regCounts.filter((r) => r._id != null).map((r) => [r._id.toString(), r.count])
+    );
 
     res.json({
       club: club.toObject(),

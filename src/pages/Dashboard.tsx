@@ -4,7 +4,13 @@ import Header from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Trophy, CheckCircle2, Clock, MapPin, QrCode, ImageOff } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Calendar, Trophy, CheckCircle2, Clock, MapPin,
+  QrCode, Download, ImageOff, X,
+} from "lucide-react";
 import { apiRequest } from "@/lib/api";
 
 interface Stats {
@@ -24,6 +30,10 @@ interface RegisteredEvent {
   poster_url: string | null;
   club_id: { name: string } | null;
   registration_fee: number;
+  registration_id: string | null;
+  qr_code_path: string | null;
+  qr_token: string | null;
+  registered_at: string | null;
 }
 
 interface AttendedEvent {
@@ -37,6 +47,16 @@ interface AttendedEvent {
   attended_at: string | null;
 }
 
+interface QrDialogData {
+  qr_code_path: string;
+  event_name: string;
+  date: string;
+  venue: string;
+  start_time?: string;
+  student_name: string;
+  student_prn: string;
+}
+
 const categoryColor: Record<string, string> = {
   technical: "bg-blue-100 text-blue-700",
   cultural:  "bg-pink-100 text-pink-700",
@@ -46,14 +66,104 @@ const categoryColor: Record<string, string> = {
   other:     "bg-muted text-muted-foreground",
 };
 
-const Dashboard = () => {
-  const navigate  = useNavigate();
-  const user      = JSON.parse(localStorage.getItem("cv_user") || "null");
+// ── QR Dialog ─────────────────────────────────────────────────
+const QrDialog = ({
+  open, onClose, data,
+}: { open: boolean; onClose: () => void; data: QrDialogData | null }) => {
+  if (!data) return null;
 
-  const [stats, setStats]             = useState<Stats | null>(null);
-  const [registered, setRegistered]   = useState<RegisteredEvent[]>([]);
-  const [attended, setAttended]       = useState<AttendedEvent[]>([]);
-  const [loading, setLoading]         = useState(true);
+  const handleDownload = async () => {
+    try {
+      const res   = await fetch(data.qr_code_path);
+      const blob  = await res.blob();
+      const url   = URL.createObjectURL(blob);
+      const a     = document.createElement("a");
+      a.href      = url;
+      a.download  = `QR_${data.event_name.replace(/\s+/g, "_")}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      window.open(data.qr_code_path, "_blank");
+    }
+  };
+
+  const formattedDate = new Date(data.date).toLocaleDateString("en-IN", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <QrCode className="w-5 h-5 text-primary" />
+            Your Event QR Code
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col items-center gap-4 py-2">
+          {/* QR Image */}
+          <div className="p-3 bg-white rounded-xl border-2 border-primary/20 shadow-[var(--shadow-soft)]">
+            <img
+              src={data.qr_code_path}
+              alt="Event QR Code"
+              className="w-52 h-52 object-contain"
+            />
+          </div>
+
+          {/* Event info */}
+          <div className="w-full space-y-2 text-center">
+            <p className="font-bold text-base leading-tight">{data.event_name}</p>
+            <div className="flex justify-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                {formattedDate}{data.start_time ? ` · ${data.start_time}` : ""}
+              </span>
+            </div>
+            <div className="flex justify-center gap-1 text-xs text-muted-foreground">
+              <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0" />
+              <span>{data.venue}</span>
+            </div>
+          </div>
+
+          {/* Student info */}
+          <div className="w-full rounded-lg bg-muted/40 border px-4 py-2.5 text-center space-y-0.5">
+            <p className="font-semibold text-sm">{data.student_name}</p>
+            <p className="text-xs text-muted-foreground">{data.student_prn}</p>
+          </div>
+
+          {/* Instruction */}
+          <p className="text-xs text-center text-muted-foreground leading-relaxed px-2">
+            Show this QR at the event entrance to mark your attendance.
+          </p>
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <Button variant="outline" className="flex-1 gap-2" onClick={onClose}>
+            <X className="w-4 h-4" /> Close
+          </Button>
+          <Button
+            className="flex-1 gap-2 bg-primary hover:bg-primary/90"
+            onClick={handleDownload}
+          >
+            <Download className="w-4 h-4" /> Download QR
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ── Dashboard ──────────────────────────────────────────────────
+const Dashboard = () => {
+  const navigate = useNavigate();
+  const user     = JSON.parse(localStorage.getItem("cv_user") || "null");
+
+  const [stats, setStats]           = useState<Stats | null>(null);
+  const [registered, setRegistered] = useState<RegisteredEvent[]>([]);
+  const [attended, setAttended]     = useState<AttendedEvent[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [qrDialog, setQrDialog]     = useState<QrDialogData | null>(null);
 
   useEffect(() => {
     if (!user || user.role !== "student") {
@@ -79,12 +189,26 @@ const Dashboard = () => {
     load();
   }, []);
 
+  const openQr = (event: RegisteredEvent) => {
+    if (!event.qr_code_path) return;
+    setQrDialog({
+      qr_code_path: event.qr_code_path,
+      event_name:   event.name,
+      date:         event.date,
+      venue:        event.venue,
+      start_time:   event.start_time,
+      student_name: user?.name ?? "Student",
+      student_prn:  user?.userId ?? "",
+    });
+  };
+
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
+      <QrDialog open={!!qrDialog} onClose={() => setQrDialog(null)} data={qrDialog} />
 
       <div className="container mx-auto px-4 py-8 space-y-8">
         {/* Welcome */}
@@ -161,9 +285,7 @@ const Dashboard = () => {
 
           {loading ? (
             <div className="space-y-3">
-              {[1,2,3].map(k => (
-                <div key={k} className="h-20 bg-muted animate-pulse rounded-lg" />
-              ))}
+              {[1,2,3].map(k => <div key={k} className="h-24 bg-muted animate-pulse rounded-lg" />)}
             </div>
           ) : registered.length === 0 ? (
             <Card className="shadow-[var(--shadow-soft)]">
@@ -212,15 +334,17 @@ const Dashboard = () => {
                       </div>
                     </div>
 
+                    {/* QR Button */}
                     <Button
-                      variant="outline"
+                      variant={event.qr_code_path ? "outline" : "ghost"}
                       size="sm"
-                      disabled
-                      className="flex-shrink-0 gap-1.5 text-xs opacity-60"
-                      title="QR code feature coming soon"
+                      disabled={!event.qr_code_path}
+                      onClick={() => openQr(event)}
+                      className="flex-shrink-0 gap-1.5 text-xs"
+                      title={event.qr_code_path ? "View QR Code" : "QR generating…"}
                     >
                       <QrCode className="w-3.5 h-3.5" />
-                      QR
+                      {event.qr_code_path ? "QR" : "…"}
                     </Button>
                   </CardContent>
                 </Card>
