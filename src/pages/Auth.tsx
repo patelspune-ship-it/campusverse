@@ -12,12 +12,17 @@ import { useAuth } from "@/hooks/useAuth";
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
 
-  const [prn, setPrn] = useState("");
-  const [email, setEmail] = useState(""); // Only used during register
-  const [mobile, setMobile] = useState(""); // Only used during register
+  const [userId, setUserId] = useState("");
+  const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
 
   const [role, setRole] = useState("student");
+
+  // Student uses PRN; everyone else uses email as their user ID
+  const isStudentRole = role === "student";
+  const userIdLabel = isStudentRole ? "PRN Number" : "Email Address";
+  const userIdPlaceholder = isStudentRole ? "ADT24SOCB0126" : "yourname@mitadt.edu";
 
   const navigate = useNavigate();
   const { login, register, loading } = useAuth();
@@ -27,16 +32,23 @@ const Auth = () => {
 
     if (isLogin) {
       // ✅ LOGIN USING PRN + PASSWORD
-      const res = await login({ prn, password });
+      const res = await login({ userId, password });
       if (res.success) {
         toast.success("Welcome back 🎉");
-        navigate("/");
+        // Redirect based on the role returned by the server (authoritative)
+        const user = JSON.parse(localStorage.getItem("cv_user") || "{}");
+        if (user.role === "super_admin") navigate("/admin/dashboard");
+        else if (user.role === "faculty") navigate("/faculty/dashboard");
+        else if (user.role === "club_admin") navigate("/club/dashboard");
+        else navigate("/dashboard");
       } else {
         toast.error(res.message);
       }
     } else {
       // ✅ REGISTER USER
-      const res = await register({ prn, email, mobile, password, role });
+      // For non-students, userId IS their email — no separate email field
+      const effectiveEmail = isStudentRole ? email : userId;
+      const res = await register({ userId, email: effectiveEmail, mobile, password, role });
       if (res.success) {
         toast.success("Account Created ✅ Please Login Now");
         setIsLogin(true);
@@ -64,34 +76,54 @@ const Auth = () => {
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-5">
 
-            {/* PRN FIELD ALWAYS SHOWN */}
+            {/* ROLE — shown on both login and register */}
             <div className="space-y-2">
-              <Label htmlFor="prn">PRN Number</Label>
+              <Label htmlFor="role">I am a</Label>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger className="h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="student">Student</SelectItem>
+                  <SelectItem value="club_admin">Club Admin</SelectItem>
+                  <SelectItem value="faculty">Faculty Coordinator</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* USER ID — label and placeholder adapt to selected role */}
+            <div className="space-y-2">
+              <Label htmlFor="userId">{userIdLabel}</Label>
               <Input
-                id="prn"
-                placeholder="ADT24SOCB0126"
-                value={prn}
-                onChange={(e) => setPrn(e.target.value)}
+                id="userId"
+                type={isStudentRole ? "text" : "email"}
+                placeholder={userIdPlaceholder}
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
                 required
                 className="h-11"
               />
             </div>
 
-            {/* SHOWN ONLY DURING REGISTER */}
+            {/* REGISTER-ONLY FIELDS */}
             {!isLogin && (
               <>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Student Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="your.email@mitadt.edu"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required={!isLogin}
-                    className="h-11"
-                  />
-                </div>
+                {/* Email only needed for students — others use their email as user ID */}
+                {isStudentRole && (
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Student Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="your.email@mitadt.edu"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="h-11"
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="mobile">Mobile Number</Label>
@@ -101,23 +133,9 @@ const Auth = () => {
                     placeholder="9876543210"
                     value={mobile}
                     onChange={(e) => setMobile(e.target.value)}
-                    required={!isLogin}
+                    required
                     className="h-11"
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Select value={role} onValueChange={setRole}>
-                    <SelectTrigger className="h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="student">Student</SelectItem>
-                      <SelectItem value="club_admin">Club Admin</SelectItem>
-                      <SelectItem value="faculty">Faculty Coordinator</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
               </>
             )}

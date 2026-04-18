@@ -57,9 +57,9 @@ const Header = () => {
         <div className="flex items-center gap-4">
           {user ? (
             <>
-              {/* Show Role + PRN */}
+              {/* Show User ID + Role */}
               <span className="text-sm font-semibold text-gray-600">
-                {user.prn} | {user.role.toUpperCase()}
+                {user.userId} | {user.role.toUpperCase()}
               </span>
 
               <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">

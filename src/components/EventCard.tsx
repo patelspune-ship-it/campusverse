@@ -30,7 +30,7 @@ const EventCard = ({ eventId, title, club, date, venue, description, tags, regis
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userPrn: user.prn,
+          userId: user.userId,
           eventId
         })
       });

@@ -5,14 +5,14 @@ const API_URL = "http://localhost:5000/api/auth";
 export function useAuth() {
   const [loading, setLoading] = useState(false);
 
-  // ✅ LOGIN USING PRN + PASSWORD
-  const login = async ({ prn, password }) => {
+  // ✅ LOGIN USING USER ID + PASSWORD
+  const login = async ({ userId, password }) => {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prn, password }), // ✅ Send PRN not email
+        body: JSON.stringify({ userId, password }),
       });
 
       const data = await res.json();
@@ -30,13 +30,13 @@ export function useAuth() {
   };
 
   // ✅ REGISTER USER
-  const register = async ({ prn, email, mobile, password, role }) => {
+  const register = async ({ userId, email, mobile, password, role }) => {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prn, email, mobile, password, role }),
+        body: JSON.stringify({ userId, email, mobile, password, role }),
       });
 
       const data = await res.json();

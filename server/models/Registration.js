@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const registrationSchema = new mongoose.Schema({
-  userPrn: String,
+  userId: String,
   eventId: String,
   registeredAt: { type: Date, default: Date.now },
 });
