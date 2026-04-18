@@ -1,110 +1,147 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Header from "@/components/Header";
-import EventCard from "@/components/EventCard";
+import EventCard, { EventCardProps } from "@/components/EventCard";
 import { Input } from "@/components/ui/input";
-import { Search, Calendar, Building2 } from "lucide-react";
+import { Search, Building2, Calendar } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { apiRequest } from "@/lib/api";
+
+interface RawEvent {
+  _id: string;
+  name: string;
+  description: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  venue: string;
+  category: string;
+  poster_url: string | null;
+  max_participants: number;
+  registrationCount: number;
+  registration_fee: number;
+  club_id: { _id: string; name: string; logo_url: string | null } | null;
+}
+
+interface Institute { _id: string; name: string; code: string }
+
+// Simple skeleton
+const EventSkeleton = () => (
+  <div className="rounded-lg border bg-card animate-pulse overflow-hidden">
+    <div className="h-40 bg-muted" />
+    <div className="p-4 space-y-3">
+      <div className="h-4 bg-muted rounded w-3/4" />
+      <div className="h-3 bg-muted rounded w-1/2" />
+      <div className="h-3 bg-muted rounded w-2/3" />
+    </div>
+    <div className="px-4 pb-4">
+      <div className="h-9 bg-muted rounded" />
+    </div>
+  </div>
+);
 
 const Home = () => {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [events, setEvents]             = useState<RawEvent[]>([]);
+  const [institutes, setInstitutes]     = useState<Institute[]>([]);
+  const [registeredIds, setRegisteredIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading]           = useState(true);
+  const [searchQuery, setSearchQuery]   = useState("");
   const [selectedInstitute, setSelectedInstitute] = useState("all");
 
-  const institutes = [
-    "All Institutes",
-    "MIT School of Computing",
-    "MIT School of Engineering",
-    "MIT College of Management",
-    "MIT School of Design",
-    "MIT College of Arts & Science",
-    "MIT Institute of Design"
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [eventsData, institutesData] = await Promise.all([
+          apiRequest("/api/public/events/upcoming"),
+          apiRequest("/api/public/institutes"),
+        ]);
+        if (Array.isArray(eventsData))    setEvents(eventsData);
+        if (Array.isArray(institutesData)) setInstitutes(institutesData);
 
-  // Sample events data
-  const events = [
-    {
-      id: "1",
-      title: "AI & Machine Learning Workshop",
-      club: "Synapse.AI",
-      institute: "MIT School of Computing",
-      date: "March 15, 2025 | 10:00 AM",
-      venue: "Innovation Lab, Building A",
-      description: "Hands-on workshop covering fundamentals of AI, machine learning algorithms, and practical implementation using Python and TensorFlow.",
-      tags: ["AI", "Workshop", "Tech"],
-      registeredCount: 87
-    },
-    {
-      id: "2",
-      title: "Tech Hackathon 2025",
-      club: "GFG Student Chapter",
-      institute: "MIT School of Computing",
-      date: "March 20-21, 2025",
-      venue: "Main Auditorium",
-      description: "24-hour coding challenge with exciting problem statements. Build innovative solutions and win prizes worth ₹50,000.",
-      tags: ["Hackathon", "Coding", "Competition"],
-      registeredCount: 156
-    },
-    {
-      id: "3",
-      title: "Photography Exhibition: Campus Life",
-      club: "Photography Club",
-      institute: "MIT School of Design",
-      date: "March 18, 2025 | 3:00 PM",
-      venue: "Art Gallery, Student Center",
-      description: "Showcase of the best student photography capturing everyday moments and beauty of campus life.",
-      tags: ["Photography", "Exhibition", "Cultural"],
-      registeredCount: 42
-    },
-    {
-      id: "4",
-      title: "Sustainability Summit",
-      club: "EV Club",
-      institute: "MIT School of Engineering",
-      date: "March 25, 2025 | 11:00 AM",
-      venue: "Conference Hall",
-      description: "Discussion on sustainable practices, electric vehicles, and green energy initiatives on campus.",
-      tags: ["Sustainability", "Environment", "Tech"],
-      registeredCount: 63
-    },
-    {
-      id: "5",
-      title: "Cultural Fusion Night",
-      club: "The Infusion Club",
-      institute: "MIT College of Management",
-      date: "March 28, 2025 | 6:00 PM",
-      venue: "Open Air Theatre",
-      description: "An evening celebrating diverse cultures through music, dance, and performances from students across the nation.",
-      tags: ["Cultural", "Music", "Dance"],
-      registeredCount: 234
-    },
-    {
-      id: "6",
-      title: "Dhol Tasha Performance",
-      club: "Dhol Tasha Pathak",
-      institute: "MIT College of Arts & Science",
-      date: "March 30, 2025 | 4:00 PM",
-      venue: "Sports Ground",
-      description: "Traditional Maharashtrian percussion performance showcasing the energetic art of Dhol Tasha.",
-      tags: ["Cultural", "Traditional", "Music"],
-      registeredCount: 189
-    }
-  ];
+        // Fetch registered event IDs if logged in as student
+        const user = JSON.parse(localStorage.getItem("cv_user") || "null");
+        if (user?.role === "student") {
+          const ids = await apiRequest("/api/student/my-event-ids");
+          if (Array.isArray(ids)) setRegisteredIds(new Set(ids));
+        }
+      } catch {
+        // silently fail — empty state handles it
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
-  const filteredEvents = events.filter(event => {
-    const matchesSearch = event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.club.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    const matchesInstitute = selectedInstitute === "all" || event.institute === selectedInstitute;
-    
+  const handleRegisterSuccess = (eventId: string) => {
+    setRegisteredIds((prev) => new Set([...prev, eventId]));
+  };
+
+  const filteredEvents = events.filter((event) => {
+    const matchesSearch =
+      !searchQuery ||
+      event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (event.club_id?.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      event.category.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesInstitute =
+      selectedInstitute === "all" ||
+      event.club_id?._id === selectedInstitute;
+
     return matchesSearch && matchesInstitute;
   });
+
+  const techEvents     = filteredEvents.filter((e) => e.category === "technical");
+  const culturalEvents = filteredEvents.filter((e) => e.category === "cultural");
+  const sportsEvents   = filteredEvents.filter((e) => e.category === "sports");
+
+  const toCardProps = (e: RawEvent): EventCardProps => ({
+    id:                e._id,
+    name:              e.name,
+    clubName:          e.club_id?.name ?? "Unknown Club",
+    clubLogo:          e.club_id?.logo_url,
+    date:              e.date,
+    start_time:        e.start_time,
+    venue:             e.venue,
+    description:       e.description,
+    category:          e.category,
+    poster_url:        e.poster_url,
+    max_participants:  e.max_participants,
+    registrationCount: e.registrationCount,
+    registration_fee:  e.registration_fee,
+    isRegistered:      registeredIds.has(e._id),
+    onRegisterSuccess: handleRegisterSuccess,
+  });
+
+  const EventGrid = ({ list }: { list: RawEvent[] }) => {
+    if (loading) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((k) => <EventSkeleton key={k} />)}
+        </div>
+      );
+    }
+    if (list.length === 0) {
+      return (
+        <div className="col-span-full py-16 text-center">
+          <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-30" />
+          <p className="text-muted-foreground font-medium">No upcoming events found.</p>
+          <p className="text-sm text-muted-foreground mt-1">Check back later or try a different filter.</p>
+        </div>
+      );
+    }
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {list.map((e) => <EventCard key={e._id} {...toCardProps(e)} />)}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
-      {/* Hero Section */}
+
+      {/* Hero */}
       <section className="bg-gradient-to-br from-primary/5 via-secondary/20 to-accent/5 border-b">
         <div className="container mx-auto px-4 py-16">
           <div className="max-w-3xl mx-auto text-center space-y-6">
@@ -114,30 +151,28 @@ const Home = () => {
             <p className="text-lg text-muted-foreground">
               Your central hub for all events, clubs, and activities at MIT ADT University
             </p>
-            
+
             <div className="max-w-2xl mx-auto space-y-4">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
-                  placeholder="Search events by name, club, or tags..."
+                  placeholder="Search events by name, club, or category…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-12 h-12 text-base shadow-[var(--shadow-soft)]"
                 />
               </div>
-              
+
               <div className="flex items-center gap-3">
-                <Building2 className="w-5 h-5 text-muted-foreground" />
+                <Building2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                 <Select value={selectedInstitute} onValueChange={setSelectedInstitute}>
                   <SelectTrigger className="h-11 bg-card shadow-[var(--shadow-soft)]">
                     <SelectValue placeholder="Select Institute" />
                   </SelectTrigger>
-                  <SelectContent className="bg-popover z-50">
+                  <SelectContent>
                     <SelectItem value="all">All Institutes</SelectItem>
-                    {institutes.slice(1).map((institute) => (
-                      <SelectItem key={institute} value={institute}>
-                        {institute}
-                      </SelectItem>
+                    {institutes.map((i) => (
+                      <SelectItem key={i._id} value={i._id}>{i.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -147,47 +182,40 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Events Section */}
+      {/* Events */}
       <section className="container mx-auto px-4 py-12">
         <Tabs defaultValue="all" className="space-y-8">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
               <Calendar className="w-6 h-6 text-primary" />
-              <h2 className="text-2xl font-bold">Upcoming Events</h2>
+              <h2 className="text-2xl font-bold">
+                Upcoming Events
+                {!loading && (
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    ({filteredEvents.length})
+                  </span>
+                )}
+              </h2>
             </div>
             <TabsList>
-              <TabsTrigger value="all">All Events</TabsTrigger>
-              <TabsTrigger value="tech">Tech</TabsTrigger>
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="tech">Technical</TabsTrigger>
               <TabsTrigger value="cultural">Cultural</TabsTrigger>
+              <TabsTrigger value="sports">Sports</TabsTrigger>
             </TabsList>
           </div>
 
-          <TabsContent value="all" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredEvents.map((event) => (
-                <EventCard key={event.id} {...event} />
-              ))}
-            </div>
+          <TabsContent value="all">
+            <EventGrid list={filteredEvents} />
           </TabsContent>
-
-          <TabsContent value="tech" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredEvents
-                .filter(e => e.tags.some(tag => ["AI", "Tech", "Hackathon", "Coding", "Workshop"].includes(tag)))
-                .map((event) => (
-                  <EventCard key={event.id} {...event} />
-                ))}
-            </div>
+          <TabsContent value="tech">
+            <EventGrid list={techEvents} />
           </TabsContent>
-
-          <TabsContent value="cultural" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredEvents
-                .filter(e => e.tags.some(tag => ["Cultural", "Music", "Dance", "Traditional"].includes(tag)))
-                .map((event) => (
-                  <EventCard key={event.id} {...event} />
-                ))}
-            </div>
+          <TabsContent value="cultural">
+            <EventGrid list={culturalEvents} />
+          </TabsContent>
+          <TabsContent value="sports">
+            <EventGrid list={sportsEvents} />
           </TabsContent>
         </Tabs>
       </section>

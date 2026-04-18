@@ -1,90 +1,81 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import ClubCard from "@/components/ClubCard";
 import { Input } from "@/components/ui/input";
-import { Search, Users } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Search, Users, Building2 } from "lucide-react";
+import { apiRequest } from "@/lib/api";
+import { ClubCardProps } from "@/components/ClubCard";
+
+interface Institute { _id: string; name: string; code: string }
+
+const CATEGORIES = ["all", "technical", "cultural", "sports", "social", "arts", "other"];
+
+const ClubSkeleton = () => (
+  <div className="rounded-lg border bg-card animate-pulse overflow-hidden">
+    <div className="p-4 space-y-3">
+      <div className="flex gap-3">
+        <div className="w-12 h-12 rounded-xl bg-muted flex-shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="h-4 bg-muted rounded w-3/4" />
+          <div className="h-3 bg-muted rounded w-1/2" />
+        </div>
+      </div>
+      <div className="h-3 bg-muted rounded w-1/4" />
+      <div className="h-12 bg-muted rounded" />
+    </div>
+    <div className="px-4 pb-4">
+      <div className="h-9 bg-muted rounded" />
+    </div>
+  </div>
+);
 
 const Clubs = () => {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [clubs, setClubs]           = useState<ClubCardProps[]>([]);
+  const [institutes, setInstitutes] = useState<Institute[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [searchQuery, setSearchQuery]         = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedInstitute, setSelectedInstitute] = useState("all");
 
-  const clubs = [
-    {
-      id: "gfg",
-      name: "GFG Student Chapter",
-      institute: "MIT School of Computing",
-      description: "GeeksforGeeks student chapter focusing on competitive programming, DSA, and interview preparation. Regular coding contests and workshops.",
-      category: "Tech",
-      recruitmentOpen: true,
-      memberCount: 245
-    },
-    {
-      id: "synapse",
-      name: "Synapse.AI",
-      institute: "MIT School of Computing",
-      description: "Artificial Intelligence and Machine Learning club. Explore cutting-edge AI technologies, build ML models, and participate in AI competitions.",
-      category: "Tech",
-      recruitmentOpen: true,
-      memberCount: 189
-    },
-    {
-      id: "infusion",
-      name: "The Infusion Club",
-      institute: "MIT College of Management",
-      description: "Cultural club celebrating diversity through music, dance, drama, and various cultural events throughout the year.",
-      category: "Cultural",
-      recruitmentOpen: false,
-      memberCount: 312
-    },
-    {
-      id: "photography",
-      name: "Photography Club",
-      institute: "MIT School of Design",
-      description: "For photography enthusiasts to learn, practice, and showcase their work. Regular photo walks and exhibitions.",
-      category: "Arts",
-      recruitmentOpen: true,
-      memberCount: 156
-    },
-    {
-      id: "ev",
-      name: "EV Club",
-      institute: "MIT School of Engineering",
-      description: "Focused on electric vehicles, sustainable transportation, and green energy solutions. Build and race electric vehicles.",
-      category: "Tech",
-      recruitmentOpen: true,
-      memberCount: 98
-    },
-    {
-      id: "music",
-      name: "Music Club",
-      institute: "Student Center",
-      description: "For all music lovers - from classical to contemporary. Jam sessions, concerts, and music production workshops.",
-      category: "Cultural",
-      recruitmentOpen: false,
-      memberCount: 203
-    },
-    {
-      id: "dhol",
-      name: "Dhol Tasha Pathak",
-      institute: "Student Center",
-      description: "Traditional Maharashtrian percussion group performing at university events and festivals. No prior experience needed.",
-      category: "Cultural",
-      recruitmentOpen: true,
-      memberCount: 67
-    }
-  ];
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [clubsData, instData] = await Promise.all([
+          apiRequest("/api/public/clubs"),
+          apiRequest("/api/public/institutes"),
+        ]);
+        if (Array.isArray(clubsData))  setClubs(clubsData);
+        if (Array.isArray(instData))   setInstitutes(instData);
+      } catch {
+        // empty state handles it
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
-  const filteredClubs = clubs.filter(club =>
-    club.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    club.institute.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    club.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = clubs.filter((c) => {
+    const matchesSearch =
+      !searchQuery ||
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.institute_id?.name ?? "").toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesCategory =
+      selectedCategory === "all" || c.category === selectedCategory;
+
+    const matchesInstitute =
+      selectedInstitute === "all" || c.institute_id?._id === selectedInstitute;
+
+    return matchesSearch && matchesCategory && matchesInstitute;
+  });
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
-      {/* Hero Section */}
+
+      {/* Hero */}
       <section className="bg-gradient-to-br from-accent/5 via-secondary/20 to-primary/5 border-b">
         <div className="container mx-auto px-4 py-16">
           <div className="max-w-3xl mx-auto text-center space-y-6">
@@ -92,70 +83,85 @@ const Clubs = () => {
               Explore Campus Clubs
             </h1>
             <p className="text-lg text-muted-foreground">
-              Join clubs, connect with like-minded students, and enhance your college experience
+              Discover clubs across all institutes at MIT ADT University
             </p>
-            
-            <div className="relative max-w-xl mx-auto">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                placeholder="Search clubs by name, institute, or category..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-12 h-12 text-base shadow-[var(--shadow-soft)]"
-              />
+
+            <div className="max-w-2xl mx-auto space-y-4">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  placeholder="Search clubs by name or institute…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-12 h-12 text-base shadow-[var(--shadow-soft)]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                  <Select value={selectedInstitute} onValueChange={setSelectedInstitute}>
+                    <SelectTrigger className="h-11 bg-card shadow-[var(--shadow-soft)]">
+                      <SelectValue placeholder="All Institutes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Institutes</SelectItem>
+                      {institutes.map((i) => (
+                        <SelectItem key={i._id} value={i._id}>{i.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="h-11 bg-card shadow-[var(--shadow-soft)]">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((cat) => (
+                      <SelectItem key={cat} value={cat} className="capitalize">
+                        {cat === "all" ? "All Categories" : cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Clubs Section */}
+      {/* Clubs Grid */}
       <section className="container mx-auto px-4 py-12">
-        <Tabs defaultValue="all" className="space-y-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Users className="w-6 h-6 text-primary" />
-              <h2 className="text-2xl font-bold">All Clubs</h2>
-            </div>
-            <TabsList>
-              <TabsTrigger value="all">All Clubs</TabsTrigger>
-              <TabsTrigger value="tech">Tech</TabsTrigger>
-              <TabsTrigger value="cultural">Cultural</TabsTrigger>
-              <TabsTrigger value="recruiting">Recruiting</TabsTrigger>
-            </TabsList>
+        <div className="flex items-center gap-3 mb-8">
+          <Users className="w-6 h-6 text-primary" />
+          <h2 className="text-2xl font-bold">
+            All Clubs
+            {!loading && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                ({filtered.length})
+              </span>
+            )}
+          </h2>
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map((k) => <ClubSkeleton key={k} />)}
           </div>
-
-          <TabsContent value="all" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredClubs.map((club) => (
-                <ClubCard key={club.id} {...club} />
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="tech" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredClubs.filter(c => c.category === "Tech").map((club) => (
-                <ClubCard key={club.id} {...club} />
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="cultural" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredClubs.filter(c => c.category === "Cultural").map((club) => (
-                <ClubCard key={club.id} {...club} />
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="recruiting" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredClubs.filter(c => c.recruitmentOpen).map((club) => (
-                <ClubCard key={club.id} {...club} />
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
+        ) : filtered.length === 0 ? (
+          <div className="py-20 text-center">
+            <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-30" />
+            <p className="text-muted-foreground font-medium">No clubs found.</p>
+            <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filters.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filtered.map((club) => (
+              <ClubCard key={club._id} {...club} />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

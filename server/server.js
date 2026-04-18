@@ -12,13 +12,14 @@ app.use(cors());
 app.use(express.json());
 
 // ✅ IMPORT ROUTES
-import authRoutes from "./routes/auth.js";
-import eventRoutes from "./routes/events.js";
+import authRoutes   from "./routes/auth.js";
+import eventRoutes  from "./routes/events.js";
+import publicRoutes from "./routes/public.js";
 // Role-scoped route groups
 import studentRoutes from "./routes/student.js";
-import clubRoutes from "./routes/club.js";
+import clubRoutes    from "./routes/club.js";
 import facultyRoutes from "./routes/faculty.js";
-import adminRoutes from "./routes/admin.js";
+import adminRoutes   from "./routes/admin.js";
 
 // ✅ MongoDB Connection
 async function connectDB() {
@@ -36,8 +37,9 @@ async function connectDB() {
 connectDB();
 
 // ✅ Existing routes (unchanged)
-app.use("/api/auth", authRoutes);
+app.use("/api/auth",   authRoutes);
 app.use("/api/events", eventRoutes);
+app.use("/api/public", publicRoutes);
 
 // ✅ Role-scoped routes (RBAC enforced inside each router)
 app.use("/api/student", studentRoutes);

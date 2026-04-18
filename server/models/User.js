@@ -29,6 +29,11 @@ const userSchema = new mongoose.Schema({
   // true = user must change their password on next login (e.g. seeded club admins)
   must_change_password: { type: Boolean, default: false },
 
+  // Student profile fields (filled during self-signup)
+  name:       { type: String, default: null },
+  department: { type: String, default: null },
+  year:       { type: String, default: null }, // "1" – "5"
+
   // true = user has completed their profile setup
   profile_completed: { type: Boolean, default: false },
 });
