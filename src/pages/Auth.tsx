@@ -34,13 +34,20 @@ const Auth = () => {
       // ✅ LOGIN USING PRN + PASSWORD
       const res = await login({ userId, password });
       if (res.success) {
-        toast.success("Welcome back 🎉");
-        // Redirect based on the role returned by the server (authoritative)
+        toast.success("Welcome back!");
         const user = JSON.parse(localStorage.getItem("cv_user") || "{}");
-        if (user.role === "super_admin") navigate("/admin/dashboard");
-        else if (user.role === "faculty") navigate("/faculty/dashboard");
-        else if (user.role === "club_admin") navigate("/club/dashboard");
-        else navigate("/dashboard");
+        // Forced password change takes priority over all other redirects
+        if (user.must_change_password) {
+          navigate("/change-password");
+        } else if (user.role === "super_admin") {
+          navigate("/admin/dashboard");
+        } else if (user.role === "faculty") {
+          navigate("/faculty/dashboard");
+        } else if (user.role === "club_admin") {
+          navigate("/club/dashboard");
+        } else {
+          navigate("/dashboard");
+        }
       } else {
         toast.error(res.message);
       }

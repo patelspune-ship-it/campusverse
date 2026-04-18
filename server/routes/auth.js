@@ -2,6 +2,7 @@ import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { verifyToken } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -50,12 +51,14 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid password" });
     }
 
-    // Create Token — embed role and institute_id so middleware can read them
+    // Create Token — embed all fields needed by middleware and frontend
     const token = jwt.sign(
       {
         id: user._id,
         role: user.role || "student",
         institute_id: user.institute_id || null,
+        club_id: user.club_id || null,
+        must_change_password: user.must_change_password || false,
       },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
@@ -71,6 +74,8 @@ router.post("/login", async (req, res) => {
         mobile: user.mobile,
         role: user.role || "student",
         institute_id: user.institute_id || null,
+        club_id: user.club_id || null,
+        must_change_password: user.must_change_password || false,
       },
     });
 
@@ -80,5 +85,25 @@ router.post("/login", async (req, res) => {
   }
 });
 
+
+// CHANGE PASSWORD — used for forced first-login password change
+router.post("/change-password", verifyToken, async (req, res) => {
+  const { newPassword } = req.body;
+
+  if (!newPassword || newPassword.length < 8) {
+    return res.status(400).json({ message: "Password must be at least 8 characters" });
+  }
+
+  try {
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await User.findByIdAndUpdate(req.user.id, {
+      password: hashed,
+      must_change_password: false,
+    });
+    return res.json({ message: "Password changed successfully" });
+  } catch (err) {
+    return res.status(500).json({ message: "Server error" });
+  }
+});
 
 export default router;
