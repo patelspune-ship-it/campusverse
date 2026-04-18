@@ -1,7 +1,10 @@
 import express from "express";
 import mongoose from "mongoose";
-import cors from "cors";
-import dotenv from "dotenv";
+import cors    from "cors";
+import dotenv  from "dotenv";
+import cron    from "node-cron";
+import Event        from "./models/Event.js";
+import { generateCertificatesForEvent } from "./services/certificateService.js";
 
 dotenv.config();
 
@@ -66,6 +69,35 @@ app.use("/api/attendance", attendanceRoutes);
 
 // Test Route
 app.get("/", (req, res) => res.send("CampusVerse API Running ✅"));
+
+// ── Daily certificate generation cron (2:00 AM) ───────────────
+// Finds all approved events that ended before now and haven't had
+// certificates generated yet, then generates for all full-attendance students.
+cron.schedule("0 2 * * *", async () => {
+  console.log("⏰ [CRON] Starting certificate generation job…");
+  try {
+    const events = await Event.find({
+      status:                 "approved",
+      date:                   { $lt: new Date() },
+      certificates_generated: false,
+      is_past_event:          false,
+    }).select("_id name");
+
+    console.log(`[CRON] Found ${events.length} event(s) needing certificates`);
+
+    for (const event of events) {
+      try {
+        const result = await generateCertificatesForEvent(event._id);
+        console.log(`[CRON] ✅ ${event.name}: ${result.generated} generated, ${result.failed} failed`);
+      } catch (err) {
+        console.error(`[CRON] ❌ ${event.name}:`, err.message);
+      }
+    }
+    console.log("⏰ [CRON] Certificate job complete");
+  } catch (err) {
+    console.error("[CRON] Job failed:", err);
+  }
+}, { timezone: "Asia/Kolkata" });
 
 // Start Server
 const PORT = process.env.PORT || 5000;

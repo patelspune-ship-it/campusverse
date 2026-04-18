@@ -113,4 +113,42 @@ router.get("/institutes", async (req, res) => {
   }
 });
 
+// ─── CERTIFICATE VERIFICATION ────────────────────────────────
+// GET /api/public/verify/:certId
+router.get("/verify/:certId", async (req, res) => {
+  try {
+    const { certId } = req.params;
+    if (!certId?.trim()) return res.status(400).json({ message: "Certificate ID required" });
+
+    const reg = await Registration.findOne({ certificate_id: certId.trim().toUpperCase() })
+      .populate({ path: "student_id", select: "name userId" })
+      .populate({
+        path:     "event_id",
+        select:   "name date venue",
+        populate: { path: "club_id", select: "name" },
+      });
+
+    if (!reg || !reg.certificate_path) {
+      return res.status(404).json({ valid: false, message: "Certificate not found or invalid" });
+    }
+
+    return res.json({
+      valid:            true,
+      student_name:     reg.student_id?.name   ?? reg.student_id?.userId,
+      student_prn:      reg.student_id?.userId ?? "",
+      event_name:       reg.event_id?.name     ?? "",
+      event_date:       reg.event_id?.date     ?? null,
+      venue:            reg.event_id?.venue    ?? "",
+      club_name:        reg.event_id?.club_id?.name ?? "",
+      duration_minutes: reg.duration_minutes   ?? null,
+      certificate_id:   reg.certificate_id,
+      issued_at:        reg.certificate_generated_at,
+      certificate_url:  reg.certificate_path,
+    });
+  } catch (err) {
+    console.error("Cert verify error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 export default router;

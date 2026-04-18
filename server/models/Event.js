@@ -36,6 +36,10 @@ const eventSchema = new mongoose.Schema(
     is_past_event:               { type: Boolean, default: false },
     past_event_attendees_count:  { type: Number,  default: null },
     past_event_summary:          { type: String,  default: null },
+
+    // Certificate generation tracking
+    certificates_generated:    { type: Boolean, default: false },
+    certificates_generated_at: { type: Date,    default: null  },
   },
   { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } }
 );

@@ -13,7 +13,9 @@ import ClubDetail from "./pages/ClubDetail";
 import NotFound   from "./pages/NotFound";
 
 // Shared
-import ChangePassword from "./pages/ChangePassword";
+import ChangePassword      from "./pages/ChangePassword";
+import CertificateVerify   from "./pages/CertificateVerify";
+import StudentCertificates from "./pages/student/Certificates";
 
 // Club admin
 import ClubLayout    from "./components/club/ClubLayout";
@@ -53,6 +55,8 @@ const App = () => (
 
           {/* Shared — no layout wrapper */}
           <Route path="/change-password" element={<ChangePassword />} />
+          <Route path="/certificates"    element={<StudentCertificates />} />
+          <Route path="/verify/:certId"  element={<CertificateVerify />} />
 
           {/* Club admin — auth guard inside ClubLayout */}
           <Route path="/club" element={<ClubLayout />}>

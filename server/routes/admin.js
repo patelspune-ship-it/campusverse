@@ -6,6 +6,7 @@ import Event from "../models/Event.js";
 import User from "../models/User.js";
 import Institute from "../models/Institute.js";
 import Registration from "../models/Registration.js";
+import { generateCertificatesForEvent } from "../services/certificateService.js";
 
 const router = express.Router();
 router.use(verifyToken, requireRole("super_admin"));
@@ -222,6 +223,26 @@ router.get("/institutes", async (req, res) => {
     res.json(result);
   } catch {
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ─── MANUAL CERTIFICATE GENERATION ──────────────────────────
+// POST /api/admin/events/:id/generate-certificates
+router.post("/events/:id/generate-certificates", async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+
+    const result = await generateCertificatesForEvent(event._id);
+
+    res.json({
+      message:   `Generated ${result.generated} certificate(s). ${result.failed} failed.`,
+      generated: result.generated,
+      failed:    result.failed,
+    });
+  } catch (err) {
+    console.error("Manual cert generation error:", err);
+    res.status(500).json({ message: err.message ?? "Server error" });
   }
 });
 

@@ -17,6 +17,8 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.3",
+    "node-cron": "^4.2.1",
+    "puppeteer": "^24.41.0",
     "qrcode": "^1.5.4"
   }
 }

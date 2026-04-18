@@ -18,7 +18,9 @@ const registrationSchema = new mongoose.Schema(
 
     qr_code_path:      { type: String,  default: null  },
     qr_token:          { type: String,  default: null  },
-    certificate_path:  { type: String,  default: null  },
+    certificate_path:           { type: String, default: null },
+    certificate_id:             { type: String, default: null },
+    certificate_generated_at:   { type: Date,   default: null },
   },
   { timestamps: { createdAt: "registered_at", updatedAt: false } }
 );

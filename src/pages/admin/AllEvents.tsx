@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Calendar, ImageOff, XCircle, Search, Filter } from "lucide-react";
+import { Calendar, ImageOff, XCircle, Search, Filter, Award } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,6 +71,17 @@ const AllEvents = () => {
       .catch(() => {});
     fetchEvents();
   }, []);
+
+  const [generatingCert, setGeneratingCert] = useState<string | null>(null);
+
+  const handleGenerateCerts = async (id: string) => {
+    setGeneratingCert(id);
+    try {
+      const res = await apiRequest(`/api/admin/events/${id}/generate-certificates`, "POST");
+      toast.success(res.message ?? "Certificates generated");
+    } catch { toast.error("Certificate generation failed"); }
+    finally { setGeneratingCert(null); }
+  };
 
   const handleCancel = async (id: string) => {
     if (!confirm("Cancel this event? This cannot be undone.")) return;
@@ -253,18 +264,34 @@ const AllEvents = () => {
                         {event.registrationCount}
                       </TableCell>
                       <TableCell className="text-right">
-                        {!["completed", "cancelled", "rejected"].includes(event.status) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 text-xs text-destructive hover:bg-destructive/10"
-                            onClick={() => handleCancel(event._id)}
-                            disabled={cancelling === event._id}
-                          >
-                            <XCircle className="w-3.5 h-3.5 mr-1" />
-                            {cancelling === event._id ? "…" : "Cancel"}
-                          </Button>
-                        )}
+                        <div className="flex items-center justify-end gap-1">
+                          {/* Generate Certificates — for past approved events */}
+                          {event.status === "approved" && new Date(event.date) < new Date() && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-xs text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20"
+                              onClick={() => handleGenerateCerts(event._id)}
+                              disabled={generatingCert === event._id}
+                              title="Generate certificates for full-attendance students"
+                            >
+                              <Award className="w-3.5 h-3.5 mr-1" />
+                              {generatingCert === event._id ? "…" : "Certs"}
+                            </Button>
+                          )}
+                          {!["completed", "cancelled", "rejected"].includes(event.status) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-xs text-destructive hover:bg-destructive/10"
+                              onClick={() => handleCancel(event._id)}
+                              disabled={cancelling === event._id}
+                            >
+                              <XCircle className="w-3.5 h-3.5 mr-1" />
+                              {cancelling === event._id ? "…" : "Cancel"}
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

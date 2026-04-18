@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Calendar, Trophy, CheckCircle2, Clock, MapPin,
-  QrCode, Download, ImageOff, X, LogIn, LogOut,
+  QrCode, Download, ImageOff, X, LogIn, LogOut, Award,
 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 
@@ -49,6 +49,8 @@ interface AttendedEvent {
   club_id: { name: string } | null;
   attendance_status: "partial" | "full";
   duration_minutes: number | null;
+  certificate_path: string | null;
+  certificate_id: string | null;
 }
 
 interface QrDialogData {
@@ -253,7 +255,10 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="shadow-[var(--shadow-soft)]">
+          <Card
+            className="shadow-[var(--shadow-soft)] cursor-pointer hover:shadow-[var(--shadow-strong)] transition-all"
+            onClick={() => navigate("/certificates")}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Certificates Earned</CardTitle>
               <Trophy className="w-4 h-4 text-yellow-500" />
@@ -262,7 +267,7 @@ const Dashboard = () => {
               <div className="text-3xl font-bold">
                 {loading ? <span className="animate-pulse">—</span> : (stats?.certificatesEarned ?? 0)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Downloadable certificates</p>
+              <p className="text-xs text-muted-foreground mt-1">Click to view all</p>
             </CardContent>
           </Card>
 
@@ -403,7 +408,7 @@ const Dashboard = () => {
                         </span>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                       {event.attendance_status === "full" ? (
                         <Badge className="bg-green-600 text-white text-xs gap-1">
                           <CheckCircle2 className="w-3 h-3" /> Full
@@ -415,6 +420,22 @@ const Dashboard = () => {
                       )}
                       {event.duration_minutes != null && (
                         <span className="text-xs text-muted-foreground">{event.duration_minutes} min</span>
+                      )}
+                      {event.attendance_status === "full" && (
+                        event.certificate_path ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs gap-1 text-primary border-primary/40"
+                            onClick={() => window.open(event.certificate_path!, "_blank")}
+                          >
+                            <Award className="w-3 h-3" /> Certificate
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="ghost" disabled className="h-7 px-2 text-xs gap-1 opacity-50">
+                            <Award className="w-3 h-3" /> Pending
+                          </Button>
+                        )
                       )}
                     </div>
                   </CardContent>

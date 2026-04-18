@@ -25,10 +25,15 @@ router.get("/stats", async (req, res) => {
       }),
     ]);
 
+    const certificates = await Registration.countDocuments({
+      student_id: req.user.id,
+      certificate_path: { $ne: null },
+    });
+
     res.json({
-      eventsRegistered:   registrations.length,
-      eventsAttended:     attended,
-      certificatesEarned: attended, // Placeholder — Phase 9 will track certs separately
+      eventsRegistered:    registrations.length,
+      eventsAttended:      attended,
+      certificatesEarned:  certificates,
       activeRegistrations: upcoming,
     });
   } catch {
@@ -83,7 +88,7 @@ router.get("/my-attended", async (req, res) => {
     const registrations = await Registration.find({
       student_id: req.user.id,
       attendance_status: { $in: ["partial", "full"] },
-    }).select("event_id attendance_status duration_minutes");
+    }).select("event_id attendance_status duration_minutes certificate_path certificate_id certificate_generated_at");
     const regMap = Object.fromEntries(registrations.map((r) => [r.event_id.toString(), r]));
     const eventIds = registrations.map((r) => r.event_id);
 
@@ -95,8 +100,51 @@ router.get("/my-attended", async (req, res) => {
       const reg = regMap[e._id.toString()];
       return {
         ...e.toObject(),
-        attendance_status: reg?.attendance_status ?? "partial",
-        duration_minutes:  reg?.duration_minutes  ?? null,
+        attendance_status:        reg?.attendance_status        ?? "partial",
+        duration_minutes:         reg?.duration_minutes         ?? null,
+        certificate_path:         reg?.certificate_path         ?? null,
+        certificate_id:           reg?.certificate_id           ?? null,
+        certificate_generated_at: reg?.certificate_generated_at ?? null,
+      };
+    });
+
+    res.json(result);
+  } catch {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ─── MY CERTIFICATES ─────────────────────────────────────────
+// GET /api/student/my-certificates
+router.get("/my-certificates", async (req, res) => {
+  try {
+    const regs = await Registration.find({
+      student_id:       req.user.id,
+      certificate_path: { $ne: null },
+    }).select("event_id certificate_path certificate_id certificate_generated_at duration_minutes");
+
+    const regMap  = Object.fromEntries(regs.map((r) => [r.event_id.toString(), r]));
+    const eventIds = regs.map((r) => r.event_id);
+
+    const events = await Event.find({ _id: { $in: eventIds } })
+      .sort({ date: -1 })
+      .populate("club_id", "name logo_url");
+
+    const result = events.map((e) => {
+      const reg = regMap[e._id.toString()];
+      return {
+        _id:                      e._id,
+        name:                     e.name,
+        date:                     e.date,
+        venue:                    e.venue,
+        category:                 e.category,
+        poster_url:               e.poster_url,
+        club_name:                e.club_id?.name ?? "",
+        club_logo:                e.club_id?.logo_url ?? null,
+        certificate_path:         reg.certificate_path,
+        certificate_id:           reg.certificate_id,
+        certificate_generated_at: reg.certificate_generated_at,
+        duration_minutes:         reg.duration_minutes,
       };
     });
 

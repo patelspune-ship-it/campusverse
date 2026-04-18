@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Certificate of Participation</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Open+Sans:wght@300;400;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 297mm;
+      height: 210mm;
+      background: #ffffff;
+      font-family: 'Open Sans', sans-serif;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .page {
+      width: 297mm;
+      height: 210mm;
+      position: relative;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    /* ── Outer border ── */
+    .border-outer {
+      position: absolute;
+      inset: 5mm;
+      border: 2.5px solid #5b21b6;
+    }
+
+    /* ── Inner border ── */
+    .border-inner {
+      position: absolute;
+      inset: 7.5mm;
+      border: 1px solid #d97706;
+    }
+
+    /* ── Corner ornaments ── */
+    .corner {
+      position: absolute;
+      width: 14mm;
+      height: 14mm;
+    }
+    .corner svg { width: 100%; height: 100%; }
+    .corner.tl { top: 3mm; left: 3mm; }
+    .corner.tr { top: 3mm; right: 3mm; transform: scaleX(-1); }
+    .corner.bl { bottom: 3mm; left: 3mm; transform: scaleY(-1); }
+    .corner.br { bottom: 3mm; right: 3mm; transform: scale(-1); }
+
+    /* ── Top header band ── */
+    .header-band {
+      position: absolute;
+      top: 9.5mm;
+      left: 9.5mm;
+      right: 9.5mm;
+      height: 16mm;
+      background: linear-gradient(135deg, #4c1d95, #6d28d9);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8mm;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 4mm;
+    }
+
+    .cv-logo-circle {
+      width: 10mm;
+      height: 10mm;
+      background: rgba(255,255,255,0.2);
+      border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      font-size: 5.5pt;
+      color: #ffffff;
+      letter-spacing: 0.5px;
+    }
+
+    .cv-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 13pt;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 2px;
+    }
+
+    .cv-tagline {
+      font-size: 6.5pt;
+      color: rgba(255,255,255,0.75);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-top: 1mm;
+    }
+
+    .header-right {
+      text-align: right;
+    }
+
+    .university-name {
+      font-size: 7.5pt;
+      font-weight: 600;
+      color: rgba(255,255,255,0.9);
+      letter-spacing: 0.5px;
+    }
+
+    .university-sub {
+      font-size: 6pt;
+      color: rgba(255,255,255,0.65);
+      margin-top: 0.5mm;
+    }
+
+    /* ── Main content area ── */
+    .content {
+      position: absolute;
+      top: 28mm;
+      left: 12mm;
+      right: 12mm;
+      bottom: 20mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .cert-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 22pt;
+      font-weight: 700;
+      color: #3b0764;
+      letter-spacing: 3px;
+      text-align: center;
+      margin-top: 2mm;
+    }
+
+    .cert-subtitle-line {
+      width: 80mm;
+      height: 0.8px;
+      background: linear-gradient(to right, transparent, #d97706, transparent);
+      margin: 2mm auto;
+    }
+
+    .certify-text {
+      font-size: 8.5pt;
+      color: #6b7280;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 3mm;
+      text-align: center;
+    }
+
+    .student-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 28pt;
+      font-weight: 700;
+      font-style: italic;
+      color: #4c1d95;
+      text-align: center;
+      margin-top: 1.5mm;
+      letter-spacing: 1px;
+      line-height: 1.1;
+    }
+
+    .participated-text {
+      font-size: 8.5pt;
+      color: #6b7280;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 2.5mm;
+      text-align: center;
+    }
+
+    .event-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 15pt;
+      font-weight: 600;
+      color: #1f2937;
+      text-align: center;
+      margin-top: 1.5mm;
+      letter-spacing: 0.5px;
+    }
+
+    .event-meta {
+      font-size: 8pt;
+      color: #6b7280;
+      text-align: center;
+      margin-top: 1.5mm;
+      letter-spacing: 0.5px;
+    }
+
+    .duration-badge {
+      display: inline-block;
+      background: #fef3c7;
+      border: 1px solid #d97706;
+      color: #92400e;
+      font-size: 7.5pt;
+      font-weight: 600;
+      padding: 1mm 4mm;
+      border-radius: 3mm;
+      margin-top: 2mm;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Bottom section ── */
+    .bottom-divider {
+      position: absolute;
+      bottom: 20mm;
+      left: 12mm;
+      right: 12mm;
+      height: 0.8px;
+      background: linear-gradient(to right, transparent, #d97706 20%, #d97706 80%, transparent);
+    }
+
+    .bottom-section {
+      position: absolute;
+      bottom: 7mm;
+      left: 12mm;
+      right: 12mm;
+      height: 12mm;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+
+    .sig-block {
+      text-align: center;
+      width: 45mm;
+    }
+
+    .sig-line {
+      width: 38mm;
+      height: 0.6px;
+      background: #9ca3af;
+      margin: 0 auto 1.5mm;
+    }
+
+    .sig-title {
+      font-size: 7pt;
+      font-weight: 600;
+      color: #374151;
+      letter-spacing: 0.5px;
+    }
+
+    .sig-org {
+      font-size: 6pt;
+      color: #9ca3af;
+      margin-top: 0.3mm;
+    }
+
+    /* ── QR Code (center bottom) ── */
+    .qr-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1mm;
+    }
+
+    .qr-image {
+      width: 14mm;
+      height: 14mm;
+      image-rendering: pixelated;
+    }
+
+    .qr-label {
+      font-size: 5.5pt;
+      color: #9ca3af;
+      letter-spacing: 0.5px;
+      text-align: center;
+    }
+
+    /* ── Cert ID (right bottom) ── */
+    .cert-id-block {
+      text-align: right;
+      width: 55mm;
+    }
+
+    .cert-id-label {
+      font-size: 6pt;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .cert-id-value {
+      font-size: 8pt;
+      font-weight: 700;
+      color: #d97706;
+      font-family: 'Open Sans', monospace;
+      letter-spacing: 1px;
+    }
+
+    .issue-date {
+      font-size: 6.5pt;
+      color: #9ca3af;
+      margin-top: 0.5mm;
+    }
+
+    /* ── Watermark ── */
+    .watermark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-30deg);
+      font-family: 'Playfair Display', serif;
+      font-size: 72pt;
+      font-weight: 700;
+      color: rgba(109, 40, 217, 0.035);
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Watermark -->
+  <div class="watermark">CampusVerse</div>
+
+  <!-- Borders -->
+  <div class="border-outer"></div>
+  <div class="border-inner"></div>
+
+  <!-- Corner ornaments -->
+  <div class="corner tl">
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 38 L2 2 L38 2" stroke="#d97706" stroke-width="1.5" fill="none"/>
+      <path d="M2 2 L12 12" stroke="#5b21b6" stroke-width="1" fill="none"/>
+      <circle cx="2" cy="2" r="2.5" fill="#d97706"/>
+    </svg>
+  </div>
+  <div class="corner tr">
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 38 L2 2 L38 2" stroke="#d97706" stroke-width="1.5" fill="none"/>
+      <path d="M2 2 L12 12" stroke="#5b21b6" stroke-width="1" fill="none"/>
+      <circle cx="2" cy="2" r="2.5" fill="#d97706"/>
+    </svg>
+  </div>
+  <div class="corner bl">
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 38 L2 2 L38 2" stroke="#d97706" stroke-width="1.5" fill="none"/>
+      <path d="M2 2 L12 12" stroke="#5b21b6" stroke-width="1" fill="none"/>
+      <circle cx="2" cy="2" r="2.5" fill="#d97706"/>
+    </svg>
+  </div>
+  <div class="corner br">
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 38 L2 2 L38 2" stroke="#d97706" stroke-width="1.5" fill="none"/>
+      <path d="M2 2 L12 12" stroke="#5b21b6" stroke-width="1" fill="none"/>
+      <circle cx="2" cy="2" r="2.5" fill="#d97706"/>
+    </svg>
+  </div>
+
+  <!-- Header band -->
+  <div class="header-band">
+    <div class="header-left">
+      <div class="cv-logo-circle">CV</div>
+      <div>
+        <div class="cv-name">CampusVerse</div>
+        <div class="cv-tagline">Campus Activity Platform</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="university-name">MIT-ADT University, Pune</div>
+      <div class="university-sub">Loni Kalbhor, Pune – 412201, Maharashtra</div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="content">
+    <div class="cert-title">Certificate of Participation</div>
+    <div class="cert-subtitle-line"></div>
+
+    <div class="certify-text">This is to certify that</div>
+
+    <div class="student-name">{{STUDENT_NAME}}</div>
+
+    <div class="participated-text">has actively participated in</div>
+
+    <div class="event-name">{{EVENT_NAME}}</div>
+
+    <div class="event-meta">
+      Organized by <strong>{{CLUB_NAME}}</strong> &nbsp;·&nbsp; {{EVENT_DATE}}
+    </div>
+
+    <div class="duration-badge">Duration of Attendance: {{DURATION_MINUTES}} minutes</div>
+  </div>
+
+  <!-- Divider -->
+  <div class="bottom-divider"></div>
+
+  <!-- Bottom section -->
+  <div class="bottom-section">
+
+    <!-- Signature 1 — Club President -->
+    <div class="sig-block">
+      <div class="sig-line"></div>
+      <div class="sig-title">Club President</div>
+      <div class="sig-org">{{CLUB_NAME}}</div>
+    </div>
+
+    <!-- QR Code (center) -->
+    <div class="qr-block">
+      <img class="qr-image" src="{{QR_CODE_DATA_URL}}" alt="Verification QR" />
+      <div class="qr-label">Scan to verify</div>
+    </div>
+
+    <!-- Cert ID (right) -->
+    <div class="cert-id-block">
+      <div class="cert-id-label">Certificate ID</div>
+      <div class="cert-id-value">{{CERT_ID}}</div>
+      <div class="issue-date">Issued on {{ISSUE_DATE}}</div>
+    </div>
+
+  </div>
+
+</div>
+</body>
+</html>
