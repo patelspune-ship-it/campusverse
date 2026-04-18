@@ -17,7 +17,7 @@ router.get("/stats", async (req, res) => {
 
     const [events, attended, upcoming] = await Promise.all([
       Event.countDocuments({ _id: { $in: eventIds } }),
-      Registration.countDocuments({ student_id: req.user.id, attended: true }),
+      Registration.countDocuments({ student_id: req.user.id, attendance_status: "full" }),
       Event.countDocuments({
         _id:    { $in: eventIds },
         status: "approved",
@@ -41,7 +41,7 @@ router.get("/stats", async (req, res) => {
 router.get("/my-registrations", async (req, res) => {
   try {
     const registrations = await Registration.find({ student_id: req.user.id })
-      .select("event_id qr_code_path qr_token registered_at");
+      .select("event_id qr_code_path qr_token registered_at attendance_status entry_scanned exit_scanned");
 
     const regMap = Object.fromEntries(
       registrations.map((r) => [r.event_id.toString(), r])
@@ -60,10 +60,13 @@ router.get("/my-registrations", async (req, res) => {
       const reg = regMap[e._id.toString()];
       return {
         ...e.toObject(),
-        registration_id:  reg?._id  ?? null,
-        qr_code_path:     reg?.qr_code_path ?? null,
-        qr_token:         reg?.qr_token     ?? null,
-        registered_at:    reg?.registered_at ?? null,
+        registration_id:   reg?._id             ?? null,
+        qr_code_path:      reg?.qr_code_path    ?? null,
+        qr_token:          reg?.qr_token        ?? null,
+        registered_at:     reg?.registered_at   ?? null,
+        attendance_status: reg?.attendance_status ?? "not_attended",
+        entry_scanned:     reg?.entry_scanned   ?? false,
+        exit_scanned:      reg?.exit_scanned    ?? false,
       };
     });
 
@@ -79,15 +82,25 @@ router.get("/my-attended", async (req, res) => {
   try {
     const registrations = await Registration.find({
       student_id: req.user.id,
-      attended: true,
-    });
+      attendance_status: { $in: ["partial", "full"] },
+    }).select("event_id attendance_status duration_minutes");
+    const regMap = Object.fromEntries(registrations.map((r) => [r.event_id.toString(), r]));
     const eventIds = registrations.map((r) => r.event_id);
 
     const events = await Event.find({ _id: { $in: eventIds } })
       .sort({ date: -1 })
       .populate("club_id", "name logo_url");
 
-    res.json(events);
+    const result = events.map((e) => {
+      const reg = regMap[e._id.toString()];
+      return {
+        ...e.toObject(),
+        attendance_status: reg?.attendance_status ?? "partial",
+        duration_minutes:  reg?.duration_minutes  ?? null,
+      };
+    });
+
+    res.json(result);
   } catch {
     res.status(500).json({ message: "Server error" });
   }

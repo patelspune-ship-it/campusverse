@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Calendar, Plus, ImageOff, XCircle, Clock } from "lucide-react";
+import { Calendar, Plus, ImageOff, XCircle, Clock, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -166,19 +166,29 @@ const ClubEvents = () => {
                             </div>
                           </div>
 
-                          {/* Cancel action (only for non-terminal events) */}
-                          {!["completed", "cancelled"].includes(event.status) && (
-                            <div className="flex gap-2 mt-3 pt-3 border-t">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="gap-1.5 h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={() => handleCancel(event._id)}
-                                disabled={cancelling === event._id}
-                              >
-                                <XCircle className="w-3.5 h-3.5" />
-                                {cancelling === event._id ? "Cancelling…" : "Cancel Event"}
-                              </Button>
+                          {/* Actions */}
+                          {!["cancelled"].includes(event.status) && (
+                            <div className="flex gap-2 mt-3 pt-3 border-t flex-wrap">
+                              {event.status === "approved" && (
+                                <Link to={`/club/events/${event._id}`}>
+                                  <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+                                    <Users className="w-3.5 h-3.5" />
+                                    View Attendees
+                                  </Button>
+                                </Link>
+                              )}
+                              {!["completed", "cancelled"].includes(event.status) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="gap-1.5 h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => handleCancel(event._id)}
+                                  disabled={cancelling === event._id}
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  {cancelling === event._id ? "Cancelling…" : "Cancel Event"}
+                                </Button>
+                              )}
                             </div>
                           )}
                         </CardContent>

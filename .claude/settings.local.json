@@ -23,7 +23,8 @@
       "Bash(curl -sv http://localhost:5000/api/public/events/upcoming)",
       "Bash(curl -s http://localhost:5000/api/public/clubs)",
       "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\);const j=JSON.parse\\(d\\);j.forEach\\(e=>console.log\\('Event:',e.name,'| club:',e.club_id?.name,'| status:',e.status,'| date:',e.date,'| regCount:',e.registrationCount\\)\\);\")",
-      "Bash(node -e \"const crypto = require\\('crypto'\\); console.log\\(crypto.randomBytes\\(48\\).toString\\('hex'\\)\\);\")"
+      "Bash(node -e \"const crypto = require\\('crypto'\\); console.log\\(crypto.randomBytes\\(48\\).toString\\('hex'\\)\\);\")",
+      "Bash(npx tsc *)"
     ]
   }
 }

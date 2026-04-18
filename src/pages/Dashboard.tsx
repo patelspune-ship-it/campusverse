@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Calendar, Trophy, CheckCircle2, Clock, MapPin,
-  QrCode, Download, ImageOff, X,
+  QrCode, Download, ImageOff, X, LogIn, LogOut,
 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 
@@ -34,6 +34,9 @@ interface RegisteredEvent {
   qr_code_path: string | null;
   qr_token: string | null;
   registered_at: string | null;
+  attendance_status: "not_attended" | "partial" | "full";
+  entry_scanned: boolean;
+  exit_scanned: boolean;
 }
 
 interface AttendedEvent {
@@ -44,7 +47,8 @@ interface AttendedEvent {
   category: string;
   poster_url: string | null;
   club_id: { name: string } | null;
-  attended_at: string | null;
+  attendance_status: "partial" | "full";
+  duration_minutes: number | null;
 }
 
 interface QrDialogData {
@@ -334,18 +338,30 @@ const Dashboard = () => {
                       </div>
                     </div>
 
-                    {/* QR Button */}
-                    <Button
-                      variant={event.qr_code_path ? "outline" : "ghost"}
-                      size="sm"
-                      disabled={!event.qr_code_path}
-                      onClick={() => openQr(event)}
-                      className="flex-shrink-0 gap-1.5 text-xs"
-                      title={event.qr_code_path ? "View QR Code" : "QR generating…"}
-                    >
-                      <QrCode className="w-3.5 h-3.5" />
-                      {event.qr_code_path ? "QR" : "…"}
-                    </Button>
+                    {/* Attendance + QR */}
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      {event.attendance_status === "full" && (
+                        <Badge className="bg-green-600 text-white text-xs gap-1 py-0.5">
+                          <CheckCircle2 className="w-3 h-3" /> Full
+                        </Badge>
+                      )}
+                      {event.attendance_status === "partial" && (
+                        <Badge className="bg-orange-500 text-white text-xs gap-1 py-0.5">
+                          <LogIn className="w-3 h-3" /> Entered
+                        </Badge>
+                      )}
+                      <Button
+                        variant={event.qr_code_path ? "outline" : "ghost"}
+                        size="sm"
+                        disabled={!event.qr_code_path}
+                        onClick={() => openQr(event)}
+                        className="gap-1.5 text-xs h-7 px-2"
+                        title={event.qr_code_path ? "View QR Code" : "QR generating…"}
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                        {event.qr_code_path ? "QR" : "…"}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -387,10 +403,20 @@ const Dashboard = () => {
                         </span>
                       </div>
                     </div>
-                    <Badge variant="secondary" className="flex-shrink-0 gap-1 text-xs">
-                      <CheckCircle2 className="w-3 h-3 text-accent" />
-                      Attended
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      {event.attendance_status === "full" ? (
+                        <Badge className="bg-green-600 text-white text-xs gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Full
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-orange-500 text-white text-xs gap-1">
+                          <LogIn className="w-3 h-3" /> Partial
+                        </Badge>
+                      )}
+                      {event.duration_minutes != null && (
+                        <span className="text-xs text-muted-foreground">{event.duration_minutes} min</span>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}

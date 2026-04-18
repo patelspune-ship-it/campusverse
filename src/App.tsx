@@ -23,6 +23,8 @@ import ClubEvents    from "./pages/club/Events";
 import CreateEvent   from "./pages/club/CreateEvent";
 import PastEvents    from "./pages/club/PastEvents";
 import AddPastEvent  from "./pages/club/AddPastEvent";
+import Scanner       from "./pages/club/Scanner";
+import EventDetail   from "./pages/club/EventDetail";
 
 // Super admin
 import AdminLayout      from "./components/admin/AdminLayout";
@@ -60,6 +62,8 @@ const App = () => (
             <Route path="events/create"   element={<CreateEvent />} />
             <Route path="events/past"     element={<PastEvents />} />
             <Route path="events/add-past" element={<AddPastEvent />} />
+            <Route path="events/:id"      element={<EventDetail />} />
+            <Route path="scanner"         element={<Scanner />} />
           </Route>
 
           {/* Super admin — auth guard inside AdminLayout */}

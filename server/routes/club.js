@@ -6,6 +6,7 @@ import Club from "../models/Club.js";
 import Event from "../models/Event.js";
 import Institute from "../models/Institute.js";
 import User from "../models/User.js";
+import Registration from "../models/Registration.js";
 
 const router = express.Router();
 
@@ -273,6 +274,67 @@ router.patch(
     }
   }
 );
+
+// ─── GET EVENTS FOR SCANNER (approved, happening now or soon) ─
+// GET /api/club/events/scanner-list
+router.get("/events/scanner-list", async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user?.club_id) return res.status(404).json({ message: "Club not found" });
+
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    const events = await Event.find({
+      club_id: user.club_id,
+      status:  "approved",
+      date:    { $gte: twoDaysAgo },
+    }).sort({ date: 1 }).select("name date start_time end_time venue");
+
+    res.json(events);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ─── GET EVENT ATTENDEES ─────────────────────────────────────
+// GET /api/club/events/:id/attendees
+router.get("/events/:id/attendees", async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const event = await Event.findOne({ _id: req.params.id, club_id: user.club_id });
+    if (!event) return res.status(404).json({ message: "Event not found" });
+
+    const registrations = await Registration.find({ event_id: event._id })
+      .populate("student_id", "name userId email")
+      .sort({ registered_at: 1 });
+
+    const attendees = registrations.map((r) => ({
+      registration_id:   r._id,
+      student_name:      r.student_id?.name    ?? "Unknown",
+      student_prn:       r.student_id?.userId  ?? "",
+      student_email:     r.student_id?.email   ?? "",
+      registered_at:     r.registered_at,
+      attendance_status: r.attendance_status,
+      entry_scanned:     r.entry_scanned,
+      entry_scanned_at:  r.entry_scanned_at,
+      exit_scanned:      r.exit_scanned,
+      exit_scanned_at:   r.exit_scanned_at,
+      duration_minutes:  r.duration_minutes,
+    }));
+
+    const stats = {
+      total:          registrations.length,
+      entry_scanned:  registrations.filter((r) => r.entry_scanned).length,
+      exit_scanned:   registrations.filter((r) => r.exit_scanned).length,
+      full_attendance: registrations.filter((r) => r.attendance_status === "full").length,
+      partial:        registrations.filter((r) => r.attendance_status === "partial").length,
+    };
+
+    res.json({ event, attendees, stats });
+  } catch (err) {
+    console.error("Get attendees error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 // ─── CANCEL EVENT ─────────────────────────────────────────────
 // PATCH /api/club/events/:id/cancel
