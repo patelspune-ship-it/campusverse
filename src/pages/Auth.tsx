@@ -23,15 +23,16 @@ const loginSchema = z.object({
 
 const signupSchema = z
   .object({
-    name:        z.string().min(2, "Full name is required"),
-    email:       z.string().email("Enter a valid email"),
-    userId:      z.string().min(3, "College ID / PRN is required"),
-    password:    z.string().min(8, "Password must be at least 8 characters"),
-    confirm:     z.string().min(1, "Please confirm your password"),
+    name:         z.string().min(2, "Full name is required"),
+    email:        z.string().email("Enter a valid email"),
+    userId:       z.string().min(3, "College ID / PRN is required"),
+    password:     z.string().min(8, "Password must be at least 8 characters"),
+    confirm:      z.string().min(1, "Please confirm your password"),
     institute_id: z.string().min(1, "Select your institute"),
-    department:  z.string().min(2, "Department is required"),
-    year:        z.string().min(1, "Select your year"),
-    mobile:      z.string().optional(),
+    division_id:  z.string().optional(),
+    department:   z.string().min(2, "Department is required"),
+    year:         z.string().min(1, "Select your year"),
+    mobile:       z.string().optional(),
   })
   .refine((d) => d.password === d.confirm, {
     message: "Passwords do not match",
@@ -42,17 +43,28 @@ type LoginValues  = z.infer<typeof loginSchema>;
 type SignupValues = z.infer<typeof signupSchema>;
 
 interface Institute { _id: string; name: string; code: string }
+interface Division  {
+  _id: string;
+  division_code: string;
+  department: string;
+  year: string;
+  institute_id: { _id: string; name: string };
+}
 
 const Auth = () => {
   const navigate = useNavigate();
   const { login, loading } = useAuth();
   const [isLogin, setIsLogin]         = useState(true);
   const [institutes, setInstitutes]   = useState<Institute[]>([]);
+  const [divisions, setDivisions]     = useState<Division[]>([]);
   const [signupLoading, setSignupLoading] = useState(false);
 
   useEffect(() => {
     apiRequest("/api/public/institutes")
       .then((data) => { if (Array.isArray(data)) setInstitutes(data); })
+      .catch(() => {});
+    apiRequest("/api/public/divisions")
+      .then((data) => { if (Array.isArray(data)) setDivisions(data); })
       .catch(() => {});
   }, []);
 
@@ -65,12 +77,12 @@ const Auth = () => {
     resolver: zodResolver(signupSchema),
     defaultValues: {
       name: "", email: "", userId: "", password: "", confirm: "",
-      institute_id: "", department: "", year: "", mobile: "",
+      institute_id: "", division_id: "", department: "", year: "", mobile: "",
     },
   });
 
-  const roleValue       = loginForm.watch("role");
-  const userIdLabel     = roleValue === "student" ? "PRN / College ID" : "Email Address";
+  const roleValue         = loginForm.watch("role");
+  const userIdLabel       = roleValue === "student" ? "PRN / College ID" : "Email Address";
   const userIdPlaceholder = roleValue === "student" ? "e.g. ADT24SOCB0126" : "you@mitadt.edu";
 
   // ── Login submit ──────────────────────────────────────────
@@ -79,9 +91,10 @@ const Auth = () => {
     if (res.success) {
       toast.success("Welcome back!");
       const user = JSON.parse(localStorage.getItem("cv_user") || "{}");
-      if (user.must_change_password)      navigate("/change-password");
+      if (user.must_change_password)       navigate("/change-password");
       else if (user.role === "super_admin") navigate("/admin/dashboard");
       else if (user.role === "club_admin")  navigate("/club/dashboard");
+      else if (user.role === "faculty")     navigate("/faculty/dashboard");
       else                                  navigate("/dashboard");
     } else {
       toast.error(res.message);
@@ -90,10 +103,10 @@ const Auth = () => {
 
   // ── Signup submit ─────────────────────────────────────────
   const onSignup = async (values: SignupValues) => {
-    // Explicitly pull select-driven fields via getValues so they're never undefined
-    const allValues = signupForm.getValues();
+    const allValues   = signupForm.getValues();
     const institute_id = allValues.institute_id || values.institute_id;
     const year         = allValues.year         || values.year;
+    const division_id  = allValues.division_id  || values.division_id || null;
 
     if (!institute_id) { toast.error("Please select your institute"); return; }
     if (!year)         { toast.error("Please select your year");      return; }
@@ -112,6 +125,7 @@ const Auth = () => {
           department:   values.department,
           year,
           institute_id,
+          division_id,
         }),
       });
 
@@ -163,9 +177,7 @@ const Auth = () => {
                       <FormLabel>I am a</FormLabel>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
-                          <SelectTrigger className="h-11">
-                            <SelectValue />
-                          </SelectTrigger>
+                          <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="student">Student</SelectItem>
@@ -185,11 +197,7 @@ const Auth = () => {
                     <FormItem>
                       <FormLabel>{userIdLabel}</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder={userIdPlaceholder}
-                          className="h-11"
-                          {...field}
-                        />
+                        <Input placeholder={userIdPlaceholder} className="h-11" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -287,6 +295,29 @@ const Auth = () => {
                   <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.institute_id.message}</p>
                 )}
               </div>
+
+              {/* Division (optional but important for attendance routing) */}
+              {divisions.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Division <span className="text-muted-foreground text-xs">(optional — enables faculty attendance verification)</span></Label>
+                  <Select
+                    value={signupForm.watch("division_id") || "none"}
+                    onValueChange={(v) => signupForm.setValue("division_id", v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Select your division" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— No division —</SelectItem>
+                      {divisions.map((d) => (
+                        <SelectItem key={d._id} value={d._id}>
+                          {d.institute_id?.name} — {d.department} — {d.division_code}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Department */}
               <div className="space-y-2">

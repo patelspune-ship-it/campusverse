@@ -4,6 +4,7 @@ import { requireRole } from "../middleware/rbac.js";
 import Registration from "../models/Registration.js";
 import Event        from "../models/Event.js";
 import User         from "../models/User.js";
+import AttendanceVerificationRequest from "../models/AttendanceVerificationRequest.js";
 
 const router = express.Router();
 router.use(verifyToken, requireRole("student"));
@@ -149,6 +150,20 @@ router.get("/my-certificates", async (req, res) => {
     });
 
     res.json(result);
+  } catch {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ─── MY FACULTY VERIFICATION REQUESTS ───────────────────────
+// GET /api/student/my-verifications
+router.get("/my-verifications", async (req, res) => {
+  try {
+    const avrs = await AttendanceVerificationRequest.find({ student_id: req.user.id })
+      .populate({ path: "faculty_id", select: "full_name faculty_code" })
+      .populate("event_id", "name")
+      .sort({ created_at: -1 });
+    res.json(avrs);
   } catch {
     res.status(500).json({ message: "Server error" });
   }

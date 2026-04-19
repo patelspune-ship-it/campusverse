@@ -1,7 +1,8 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import User from "../models/User.js";
+import User    from "../models/User.js";
+import Faculty from "../models/Faculty.js";
 import { verifyToken } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -10,7 +11,7 @@ const router = express.Router();
 router.post("/register", async (req, res) => {
   const {
     userId, email, mobile, password,
-    name, department, year, institute_id,
+    name, department, year, institute_id, division_id,
   } = req.body;
 
   try {
@@ -32,6 +33,7 @@ router.post("/register", async (req, res) => {
       department:           department || null,
       year:                 year       || null,
       institute_id:         institute_id || null,
+      division_id:          division_id  || null,
       profile_completed:    true,
       must_change_password: false,
     });
@@ -87,12 +89,20 @@ router.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: "Invalid password" });
 
+    // For faculty users, attach their Faculty profile _id to the token
+    let facultyId = user.faculty_id || null;
+    if (user.role === "faculty" && !facultyId) {
+      const fp = await Faculty.findOne({ user_id: user._id }).select("_id");
+      if (fp) facultyId = fp._id;
+    }
+
     const token = jwt.sign(
       {
         id:                   user._id,
         role:                 user.role || "student",
         institute_id:         user.institute_id || null,
         club_id:              user.club_id || null,
+        faculty_id:           facultyId,
         must_change_password: user.must_change_password || false,
       },
       process.env.JWT_SECRET,
@@ -111,6 +121,7 @@ router.post("/login", async (req, res) => {
         role:                 user.role || "student",
         institute_id:         user.institute_id || null,
         club_id:              user.club_id || null,
+        faculty_id:           facultyId,
         must_change_password: user.must_change_password || false,
       },
     });

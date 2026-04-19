@@ -7,6 +7,7 @@ import Club         from "../models/Club.js";
 import Event        from "../models/Event.js";
 import Institute    from "../models/Institute.js";
 import Registration from "../models/Registration.js";
+import Division     from "../models/Division.js";
 
 const router = express.Router();
 
@@ -108,6 +109,19 @@ router.get("/institutes", async (req, res) => {
   try {
     const institutes = await Institute.find().sort({ name: 1 });
     res.json(institutes);
+  } catch {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ─── DIVISIONS (for student signup dropdown) ─────────────────
+// GET /api/public/divisions
+router.get("/divisions", async (req, res) => {
+  try {
+    const divisions = await Division.find()
+      .populate("institute_id", "name code")
+      .sort({ division_code: 1 });
+    res.json(divisions);
   } catch {
     res.status(500).json({ message: "Server error" });
   }

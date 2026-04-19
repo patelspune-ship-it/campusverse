@@ -25,7 +25,12 @@
       "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\);const j=JSON.parse\\(d\\);j.forEach\\(e=>console.log\\('Event:',e.name,'| club:',e.club_id?.name,'| status:',e.status,'| date:',e.date,'| regCount:',e.registrationCount\\)\\);\")",
       "Bash(node -e \"const crypto = require\\('crypto'\\); console.log\\(crypto.randomBytes\\(48\\).toString\\('hex'\\)\\);\")",
       "Bash(npx tsc *)",
-      "Bash(node --input-type=module --eval \"import\\('./services/certificateService.js'\\).then\\(\\(\\)=>console.log\\('OK'\\)\\).catch\\(e=>console.error\\(e.message\\)\\)\")"
+      "Bash(node --input-type=module --eval \"import\\('./services/certificateService.js'\\).then\\(\\(\\)=>console.log\\('OK'\\)\\).catch\\(e=>console.error\\(e.message\\)\\)\")",
+      "Bash(node scripts/fixUser.js)",
+      "Bash(node -e ' *)",
+      "Bash(node -e ' *2)",
+      "Bash(node scripts/seedFullAttendance.js)",
+      "Bash(node scripts/seedTimetable.js)"
     ]
   }
 }

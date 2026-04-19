@@ -8,8 +8,15 @@ import Registration from "../models/Registration.js";
 import Event        from "../models/Event.js";
 import User         from "../models/User.js";
 import Club         from "../models/Club.js";
+import { createVerificationRequestsForEvent } from "./attendanceRoutingService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 const TEMPLATE_PATH = path.join(__dirname, "../templates/certificate.html");
 
 // Base URL for the frontend verification page
@@ -32,7 +39,7 @@ function formatEventDate(date) {
 async function uploadPdfToCloudinary(buffer, folder = "campusverse/certificates") {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: "raw", format: "pdf" },
+      { folder, resource_type: "raw" },
       (error, result) => {
         if (error) reject(error);
         else resolve({ url: result.secure_url, public_id: result.public_id });
@@ -167,6 +174,14 @@ export async function generateCertificatesForEvent(eventId) {
   });
 
   console.log(`📜 Event ${eventId}: ${generated} certs generated, ${failed} failed`);
+
+  // Trigger attendance routing (non-blocking)
+  setImmediate(() => {
+    createVerificationRequestsForEvent(eventId).catch((err) =>
+      console.error(`[Routing] Failed for event ${eventId}:`, err.message)
+    );
+  });
+
   return { generated, failed };
 }
 

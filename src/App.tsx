@@ -29,13 +29,22 @@ import Scanner       from "./pages/club/Scanner";
 import EventDetail   from "./pages/club/EventDetail";
 
 // Super admin
-import AdminLayout      from "./components/admin/AdminLayout";
-import AdminDashboard   from "./pages/admin/Dashboard";
-import PendingApprovals from "./pages/admin/PendingApprovals";
-import AllEvents        from "./pages/admin/AllEvents";
-import AllClubs         from "./pages/admin/AllClubs";
-import AllStudents      from "./pages/admin/AllStudents";
-import Institutes       from "./pages/admin/Institutes";
+import AdminLayout        from "./components/admin/AdminLayout";
+import AdminDashboard     from "./pages/admin/Dashboard";
+import PendingApprovals   from "./pages/admin/PendingApprovals";
+import AllEvents          from "./pages/admin/AllEvents";
+import AllClubs           from "./pages/admin/AllClubs";
+import AllStudents        from "./pages/admin/AllStudents";
+import Institutes         from "./pages/admin/Institutes";
+import AdminVerifications from "./pages/admin/Verifications";
+
+// Faculty
+import FacultyLayout        from "./components/faculty/FacultyLayout";
+import FacultyDashboard     from "./pages/faculty/Dashboard";
+import PendingVerifications from "./pages/faculty/PendingVerifications";
+import FacultyApproved      from "./pages/faculty/Approved";
+import FacultyRejected      from "./pages/faculty/Rejected";
+import FacultyTimetable     from "./pages/faculty/Timetable";
 
 const queryClient = new QueryClient();
 
@@ -72,12 +81,22 @@ const App = () => (
 
           {/* Super admin — auth guard inside AdminLayout */}
           <Route path="/admin" element={<AdminLayout />}>
-            <Route path="dashboard"  element={<AdminDashboard />} />
-            <Route path="approvals"  element={<PendingApprovals />} />
-            <Route path="events"     element={<AllEvents />} />
-            <Route path="clubs"      element={<AllClubs />} />
-            <Route path="students"   element={<AllStudents />} />
-            <Route path="institutes" element={<Institutes />} />
+            <Route path="dashboard"     element={<AdminDashboard />} />
+            <Route path="approvals"     element={<PendingApprovals />} />
+            <Route path="events"        element={<AllEvents />} />
+            <Route path="clubs"         element={<AllClubs />} />
+            <Route path="students"      element={<AllStudents />} />
+            <Route path="institutes"    element={<Institutes />} />
+            <Route path="verifications" element={<AdminVerifications />} />
+          </Route>
+
+          {/* Faculty — auth guard inside FacultyLayout */}
+          <Route path="/faculty" element={<FacultyLayout />}>
+            <Route path="dashboard" element={<FacultyDashboard />} />
+            <Route path="pending"   element={<PendingVerifications />} />
+            <Route path="approved"  element={<FacultyApproved />} />
+            <Route path="rejected"  element={<FacultyRejected />} />
+            <Route path="timetable" element={<FacultyTimetable />} />
           </Route>
 
           {/* Catch-all */}

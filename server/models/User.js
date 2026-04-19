@@ -36,6 +36,12 @@ const userSchema = new mongoose.Schema({
 
   // true = user has completed their profile setup
   profile_completed: { type: Boolean, default: false },
+
+  // Students: which timetable division they belong to
+  division_id: { type: mongoose.Schema.Types.ObjectId, ref: "Division", default: null },
+
+  // Faculty users: pointer to their Faculty profile document
+  faculty_id: { type: mongoose.Schema.Types.ObjectId, ref: "Faculty", default: null },
 });
 
 export default mongoose.model("User", userSchema);

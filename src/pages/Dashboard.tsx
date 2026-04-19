@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Calendar, Trophy, CheckCircle2, Clock, MapPin,
-  QrCode, Download, ImageOff, X, LogIn, LogOut, Award,
+  QrCode, Download, ImageOff, X, LogIn, LogOut, Award, GraduationCap,
 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 
@@ -37,6 +37,18 @@ interface RegisteredEvent {
   attendance_status: "not_attended" | "partial" | "full";
   entry_scanned: boolean;
   exit_scanned: boolean;
+}
+
+interface VerificationRequest {
+  _id: string;
+  subject_name: string;
+  lecture_date: string;
+  lecture_start_time: string;
+  lecture_end_time: string;
+  event_id: { name: string } | null;
+  faculty_id: { full_name: string; faculty_code: string } | null;
+  status: "pending" | "approved" | "rejected";
+  rejection_reason: string | null;
 }
 
 interface AttendedEvent {
@@ -165,11 +177,12 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const user     = JSON.parse(localStorage.getItem("cv_user") || "null");
 
-  const [stats, setStats]           = useState<Stats | null>(null);
-  const [registered, setRegistered] = useState<RegisteredEvent[]>([]);
-  const [attended, setAttended]     = useState<AttendedEvent[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [qrDialog, setQrDialog]     = useState<QrDialogData | null>(null);
+  const [stats, setStats]                 = useState<Stats | null>(null);
+  const [registered, setRegistered]       = useState<RegisteredEvent[]>([]);
+  const [attended, setAttended]           = useState<AttendedEvent[]>([]);
+  const [verifications, setVerifications] = useState<VerificationRequest[]>([]);
+  const [loading, setLoading]             = useState(true);
+  const [qrDialog, setQrDialog]           = useState<QrDialogData | null>(null);
 
   useEffect(() => {
     if (!user || user.role !== "student") {
@@ -178,14 +191,16 @@ const Dashboard = () => {
     }
     const load = async () => {
       try {
-        const [statsData, regData, attData] = await Promise.all([
+        const [statsData, regData, attData, vrData] = await Promise.all([
           apiRequest("/api/student/stats"),
           apiRequest("/api/student/my-registrations"),
           apiRequest("/api/student/my-attended"),
+          apiRequest("/api/student/my-verifications"),
         ]);
         if (statsData?.eventsRegistered !== undefined) setStats(statsData);
         if (Array.isArray(regData))  setRegistered(regData);
         if (Array.isArray(attData))  setAttended(attData);
+        if (Array.isArray(vrData))   setVerifications(vrData);
       } catch {
         // silent — empty state handles it
       } finally {
@@ -373,6 +388,54 @@ const Dashboard = () => {
             </div>
           )}
         </div>
+
+        {/* Faculty Attendance Verification Status */}
+        {!loading && verifications.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-teal-600" />
+              Faculty Attendance Status
+            </h2>
+            <p className="text-sm text-muted-foreground -mt-2">
+              Faculty need to verify your attendance for lectures missed during club events.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {verifications.map((vr) => (
+                <Card key={vr._id} className="shadow-[var(--shadow-soft)]">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{vr.subject_name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {vr.faculty_id?.full_name} · {new Date(vr.lecture_date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })} {vr.lecture_start_time}–{vr.lecture_end_time}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{vr.event_id?.name}</p>
+                        {vr.status === "rejected" && vr.rejection_reason && (
+                          <p className="text-xs text-destructive mt-1 bg-destructive/5 border border-destructive/20 rounded px-2 py-1">
+                            Rejected: {vr.rejection_reason}
+                          </p>
+                        )}
+                      </div>
+                      <Badge
+                        className={
+                          vr.status === "approved"
+                            ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 text-xs shrink-0"
+                            : vr.status === "rejected"
+                            ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 text-xs shrink-0"
+                            : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 text-xs shrink-0"
+                        }
+                      >
+                        {vr.status === "approved" && <CheckCircle2 className="w-3 h-3 mr-1" />}
+                        {vr.status === "pending"  && <Clock className="w-3 h-3 mr-1" />}
+                        {vr.status.charAt(0).toUpperCase() + vr.status.slice(1)}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Past Attended Events */}
         {!loading && attended.length > 0 && (
