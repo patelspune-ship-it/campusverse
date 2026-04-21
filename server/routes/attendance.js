@@ -6,6 +6,8 @@ import Event        from "../models/Event.js";
 import User         from "../models/User.js";
 import { verifyToken } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
+import { generateCertificate } from "../services/certificateService.js";
+import { createVerificationRequestsForEvent } from "../services/attendanceRoutingService.js";
 
 const router = express.Router();
 
@@ -173,8 +175,8 @@ router.post(
       );
 
       await Registration.findByIdAndUpdate(registration._id, {
-        exit_scanned:     true,
-        exit_scanned_at:  now,
+        exit_scanned:      true,
+        exit_scanned_at:   now,
         attendance_status: "full",
         duration_minutes,
       });
@@ -183,6 +185,22 @@ router.post(
         Event.findById(payload.event_id).select("name").catch(() => null),
         User.findById(registration.student_id).select("name userId").catch(() => null),
       ]);
+
+      // Fire-and-forget: generate cert + create verification requests
+      // Uses setImmediate so the scanner response returns instantly
+      setImmediate(async () => {
+        try {
+          await generateCertificate(registration._id);
+          console.log(`✅ [exit-scan] Cert generated for reg ${registration._id}`);
+        } catch (err) {
+          console.error(`[exit-scan] Cert generation failed for reg ${registration._id}:`, err.message ?? err);
+        }
+        try {
+          await createVerificationRequestsForEvent(payload.event_id);
+        } catch (err) {
+          console.error(`[exit-scan] Routing failed for event ${payload.event_id}:`, err.message ?? err);
+        }
+      });
 
       return res.json({
         success:          true,
