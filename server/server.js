@@ -17,6 +17,8 @@ const allowedOrigins = [
   /^http:\/\/192\.168\.\d+\.\d+:8080$/,
   /^http:\/\/192\.168\.\d+\.\d+:5173$/,
   /^https:\/\/.*\.onrender\.com$/,
+  "https://campusverse-nu.vercel.app",
+  /^https:\/\/campusverse-.*\.vercel\.app$/,
   /^https:\/\/.*\.vercel\.app$/,
 ];
 app.use(cors({
