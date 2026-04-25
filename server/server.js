@@ -16,6 +16,8 @@ const allowedOrigins = [
   "http://localhost:8080",
   /^http:\/\/192\.168\.\d+\.\d+:8080$/,
   /^http:\/\/192\.168\.\d+\.\d+:5173$/,
+  /^https:\/\/.*\.onrender\.com$/,
+  /^https:\/\/.*\.vercel\.app$/,
 ];
 app.use(cors({
   origin: (origin, callback) => {
