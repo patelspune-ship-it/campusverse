@@ -62,6 +62,11 @@ const Scanner = () => {
   const [recentScans, setRecentScans]     = useState<ScanResult[]>([]);
   const [liveStats, setLiveStats]         = useState<LiveStats | null>(null);
   const [loadingEvents, setLoadingEvents] = useState(true);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const dlog = (msg: string) => {
+    console.log("[Scanner Debug]", msg);
+    setDebugLogs(p => [...p.slice(-14), `${new Date().toLocaleTimeString().slice(0,8)} ${msg}`]);
+  };
 
   // Use a ref — never stale, safe to access inside cleanup
   const scannerRef    = useRef<Html5Qrcode | null>(null);
@@ -104,14 +109,18 @@ const Scanner = () => {
 
   // ── Scan success handler (reads scanModeRef — never stale) ───
   const handleScanSuccess = useCallback(async (decodedText: string) => {
+    dlog("QR detected, length=" + decodedText.length);
     if (processingRef.current) return;
     processingRef.current = true;
 
     const mode     = scanModeRef.current;
     const endpoint = mode === "entry" ? "/api/attendance/entry" : "/api/attendance/exit";
+    dlog("Mode=" + mode + " endpoint=" + endpoint);
 
     try {
+      dlog("POSTing to API...");
       const data = await apiRequest(endpoint, "POST", { qr_token: decodedText });
+      dlog("API returned: success=" + data?.success);
 
       if (data?.success) {
         const result: ScanResult = {
@@ -125,6 +134,7 @@ const Scanner = () => {
           status:           "success",
         };
         setRecentScans((prev) => [result, ...prev].slice(0, 20));
+        dlog("Showing success toast");
         toast.success(result.message, { duration: 2500 });
         refreshStats();
       } else {
@@ -140,10 +150,12 @@ const Scanner = () => {
           status:       isDup ? "duplicate" : "error",
         };
         setRecentScans((prev) => [result, ...prev].slice(0, 20));
+        dlog("Showing error toast: " + msg);
         if (isDup) toast.warning(msg, { duration: 2500 });
         else       toast.error(msg,   { duration: 2500 });
       }
     } catch (err: any) {
+      dlog("CAUGHT: " + (err?.message ?? "unknown") + " | " + (err?.name ?? ""));
       const msg = `Network error: ${err?.message ?? "unknown"}`;
       console.error("[Scanner] scan API error:", err);
       setRecentScans((prev) => [{
@@ -197,12 +209,16 @@ const Scanner = () => {
       await scanner.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 250 } },
-        handleScanSuccess,
+        (decodedText) => {
+          dlog("Decode callback fired with text length " + decodedText.length);
+          handleScanSuccess(decodedText);
+        },
         (_errorMessage) => {
           // Called continuously while no QR in frame — intentionally ignored
         }
       );
 
+      dlog("Camera started successfully");
       setCameraStatus("active");
     } catch (err: any) {
       const msg = err?.message ?? String(err);
@@ -434,6 +450,21 @@ const Scanner = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Debug log panel */}
+          {debugLogs.length > 0 && (
+            <Card className="my-4 border-amber-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center justify-between">
+                  <span>Debug Log</span>
+                  <button onClick={() => setDebugLogs([])} className="text-xs text-muted-foreground">Clear</button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs font-mono space-y-0.5 max-h-64 overflow-y-auto bg-slate-50 dark:bg-slate-900 rounded p-2">
+                {debugLogs.map((log, i) => <div key={i} className="break-all">{log}</div>)}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Live stats */}
           {liveStats && (
