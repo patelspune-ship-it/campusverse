@@ -87,7 +87,7 @@ function handleNotificationTap(data: NotificationData) {
 export function setupNotificationResponseHandling() {
   Notifications.getLastNotificationResponseAsync().then((response) => {
     if (response) handleNotificationTap(response.notification.request.content.data as NotificationData);
-  });
+  }).catch(() => {});
 
   const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
     handleNotificationTap(response.notification.request.content.data as NotificationData);

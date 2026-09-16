@@ -10,7 +10,7 @@ const MAX_ATTEMPTS = 10; // ~15s, matches the web app's polling window
 
 export function MyQRScreen() {
   const route = useRoute<any>();
-  const { eventId, eventName } = route.params;
+  const { eventId, eventName } = route.params ?? {};
   const { user } = useSession();
 
   const [qrUrl, setQrUrl] = useState<string | null>(null);
@@ -19,6 +19,8 @@ export function MyQRScreen() {
   const attemptsRef = useRef(0);
 
   useEffect(() => {
+    if (!eventId) { setTimedOut(true); return; }
+
     let cancelled = false;
     attemptsRef.current = 0;
     setTimedOut(false);

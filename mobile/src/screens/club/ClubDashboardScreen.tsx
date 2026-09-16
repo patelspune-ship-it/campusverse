@@ -13,6 +13,7 @@ const statusColors: Record<EventStatus, { bg: string; text: string }> = {
   completed: { bg: "#F1F1F3", text: "#4B4B55" },
   cancelled: { bg: "#F1F1F3", text: "#75757E" },
 };
+const defaultStatusColor = { bg: "#F1F1F3", text: "#4B4B55" };
 
 export function ClubDashboardScreen() {
   const navigation = useNavigation<any>();
@@ -75,7 +76,7 @@ export function ClubDashboardScreen() {
           </View>
         }
         renderItem={({ item }) => {
-          const badge = statusColors[item.status];
+          const badge = statusColors[item.status] ?? defaultStatusColor;
           return (
             <Pressable
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}

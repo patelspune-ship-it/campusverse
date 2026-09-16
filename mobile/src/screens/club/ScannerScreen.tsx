@@ -28,6 +28,7 @@ export function ScannerScreen() {
 
   const [events, setEvents] = useState<ScannerEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
+  const [eventsError, setEventsError] = useState("");
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [scanMode, setScanMode] = useState<ScanMode>("entry");
@@ -46,12 +47,16 @@ export function ScannerScreen() {
     getQueueCount().then(setQueueCount).catch(() => {});
   }, []);
 
-  useEffect(() => {
+  const loadEvents = useCallback(() => {
+    setLoadingEvents(true);
+    setEventsError("");
     getScannerEvents()
       .then(setEvents)
-      .catch(() => {})
+      .catch((cause) => setEventsError(cause instanceof ApiError ? cause.message : "Could not load events."))
       .finally(() => setLoadingEvents(false));
   }, []);
+
+  useEffect(() => { loadEvents(); }, [loadEvents]);
 
   // Subscribe to sync progress for the "Syncing X scans…" indicator, and
   // refresh the queue count whenever a sync run finishes.
@@ -184,9 +189,9 @@ export function ScannerScreen() {
             <View style={styles.selectorRow}>
               <View style={styles.selectorHalf}>
                 <Text style={styles.label}>Event</Text>
-                <Pressable style={styles.selectorButton} onPress={() => setPickerOpen(true)}>
+                <Pressable style={styles.selectorButton} onPress={() => (eventsError ? loadEvents() : setPickerOpen(true))}>
                   <Text style={styles.selectorButtonText} numberOfLines={1}>
-                    {loadingEvents ? "Loading events…" : selectedEvent ? selectedEvent.name : "Choose event"}
+                    {loadingEvents ? "Loading events…" : eventsError ? "Couldn't load events — tap to retry" : selectedEvent ? selectedEvent.name : "Choose event"}
                   </Text>
                 </Pressable>
               </View>
@@ -282,7 +287,16 @@ export function ScannerScreen() {
                   <Text style={styles.modalRowMeta}>{formatEventDate(item.date)}{item.start_time ? ` · ${item.start_time}` : ""} · {item.venue}</Text>
                 </Pressable>
               )}
-              ListEmptyComponent={<Text style={styles.modalEmpty}>{loadingEvents ? "Loading…" : "No active events found"}</Text>}
+              ListEmptyComponent={
+                eventsError ? (
+                  <View style={styles.modalErrorBox}>
+                    <Text style={styles.modalEmpty}>{eventsError}</Text>
+                    <Pressable style={styles.modalRetry} onPress={loadEvents}><Text style={styles.modalRetryText}>Try again</Text></Pressable>
+                  </View>
+                ) : (
+                  <Text style={styles.modalEmpty}>{loadingEvents ? "Loading…" : "No active events found"}</Text>
+                )
+              }
             />
           </View>
         </Pressable>
@@ -388,4 +402,7 @@ const styles = StyleSheet.create({
   modalRowTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },
   modalRowMeta: { color: colors.mutedText, fontSize: 12, marginTop: 2 },
   modalEmpty: { color: colors.mutedText, textAlign: "center", paddingVertical: spacing.lg },
+  modalErrorBox: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.md },
+  modalRetry: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: 18 },
+  modalRetryText: { color: "white", fontWeight: "800", fontSize: 13 },
 });

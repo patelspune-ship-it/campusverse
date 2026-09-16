@@ -8,7 +8,7 @@ import { colors, radius, shadow, spacing } from "../../theme/theme";
 export function EventDetailScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { event } = route.params;
+  const { event } = route.params ?? {};
 
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [isRegistered, setIsRegistered] = useState(false);
@@ -17,6 +17,7 @@ export function EventDetailScreen() {
   const [registerError, setRegisterError] = useState("");
 
   const loadStatus = useCallback(async () => {
+    if (!event?._id) return;
     setCheckingStatus(true);
     setStatusError("");
     try {
@@ -27,9 +28,17 @@ export function EventDetailScreen() {
     } finally {
       setCheckingStatus(false);
     }
-  }, [event._id]);
+  }, [event?._id]);
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  if (!event) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>Event information is missing.</Text>
+      </View>
+    );
+  }
 
   const date = new Date(event.date);
   const formattedDate = isNaN(date.getTime()) ? "Date pending" : date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });

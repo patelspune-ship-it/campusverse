@@ -8,7 +8,7 @@ import { colors, radius, shadow, spacing } from "../../theme/theme";
 
 export function CertificateScreen() {
   const route = useRoute<any>();
-  const { eventId } = route.params;
+  const { eventId } = route.params ?? {};
 
   const [certificate, setCertificate] = useState<Certificate | null>(null);
   const [loading, setLoading] = useState(true);

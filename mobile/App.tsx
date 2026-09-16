@@ -3,6 +3,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppLoadingScreen } from "./src/components/AppLoadingScreen";
+import { ErrorBoundary } from "./src/components/ErrorBoundary";
 import { SessionProvider, useSession } from "./src/context/SessionContext";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { navigationRef } from "./src/navigation/navigationRef";
@@ -16,5 +17,9 @@ function AppContent() {
 }
 
 export default function App() {
-  return <SafeAreaProvider><SessionProvider><AppContent /></SessionProvider></SafeAreaProvider>;
+  return (
+    <ErrorBoundary>
+      <SafeAreaProvider><SessionProvider><AppContent /></SessionProvider></SafeAreaProvider>
+    </ErrorBoundary>
+  );
 }

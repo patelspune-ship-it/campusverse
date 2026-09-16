@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { ApiError } from "../../api/client";
 import { getEventAttendees } from "../../services/club";
@@ -11,18 +11,21 @@ const statusBadge: Record<Attendee["attendance_status"], { label: string; bg: st
   partial: { label: "Entry Scanned", bg: "#FFF6DB", text: "#825700" },
   full: { label: "Full Attendance", bg: "#E6FAF2", text: "#1B8E63" },
 };
+const defaultStatusBadge = { label: "Unknown", bg: "#F1F1F3", text: "#4B4B55" };
 
 export function EventRegistrationsScreen() {
   const route = useRoute<any>();
-  const { eventId, eventName } = route.params;
+  const { eventId, eventName } = route.params ?? {};
 
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [stats, setStats] = useState<AttendeeStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (refresh = false) => {
+    if (!eventId) { setError("Missing event information."); setLoading(false); return; }
+    refresh ? setRefreshing(true) : setLoading(true);
     setError("");
     try {
       const data = await getEventAttendees(eventId);
@@ -32,6 +35,7 @@ export function EventRegistrationsScreen() {
       setError(cause instanceof ApiError ? cause.message : "Could not load registrations.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [eventId]);
 
@@ -45,7 +49,7 @@ export function EventRegistrationsScreen() {
     return (
       <View style={styles.center}>
         <Text style={styles.error}>{error}</Text>
-        <Pressable style={styles.retry} onPress={load}><Text style={styles.retryText}>Try again</Text></Pressable>
+        <Pressable style={styles.retry} onPress={() => load()}><Text style={styles.retryText}>Try again</Text></Pressable>
       </View>
     );
   }
@@ -56,6 +60,7 @@ export function EventRegistrationsScreen() {
       contentContainerStyle={styles.content}
       data={attendees}
       keyExtractor={(item) => item.registration_id}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
       ListHeaderComponent={
         <View>
           <Text style={styles.title}>{eventName}</Text>
@@ -70,7 +75,7 @@ export function EventRegistrationsScreen() {
         </View>
       }
       renderItem={({ item }) => {
-        const badge = statusBadge[item.attendance_status];
+        const badge = statusBadge[item.attendance_status] ?? defaultStatusBadge;
         return (
           <View style={styles.row}>
             <View style={styles.rowInfo}>

@@ -21,6 +21,7 @@ const statusColors: Record<EventStatus, { bg: string; text: string }> = {
   completed: { bg: "#F1F1F3", text: "#4B4B55" },
   cancelled: { bg: "#F1F1F3", text: "#75757E" },
 };
+const defaultStatusColor = { bg: "#F1F1F3", text: "#4B4B55" };
 
 function formatDate(iso: string) {
   const date = new Date(iso);
@@ -83,7 +84,7 @@ export function AllEventsScreen() {
           keyExtractor={(item) => item._id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
           renderItem={({ item }) => {
-            const badge = statusColors[item.status];
+            const badge = statusColors[item.status] ?? defaultStatusColor;
             return (
               <View style={styles.row}>
                 <View style={styles.rowInfo}>
