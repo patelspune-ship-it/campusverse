@@ -8,6 +8,7 @@ import { verifyToken } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
 import { generateCertificate } from "../services/certificateService.js";
 import { createVerificationRequestsForEvent } from "../services/attendanceRoutingService.js";
+import { sendPushNotification } from "../services/pushNotificationService.js";
 
 const router = express.Router();
 
@@ -192,6 +193,12 @@ router.post(
         try {
           await generateCertificate(registration._id);
           console.log(`✅ [exit-scan] Cert generated for reg ${registration._id}`);
+          sendPushNotification(
+            registration.student_id,
+            "Certificate ready!",
+            `Certificate ready for ${event?.name ?? "your event"}!`,
+            { type: "certificate", eventId: payload.event_id }
+          ).catch(() => {});
         } catch (err) {
           console.error(`[exit-scan] Cert generation failed for reg ${registration._id}:`, err.message ?? err);
         }

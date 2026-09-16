@@ -3,6 +3,7 @@ import Event         from "../models/Event.js";
 import User          from "../models/User.js";
 import Timetable     from "../models/Timetable.js";
 import AttendanceVerificationRequest from "../models/AttendanceVerificationRequest.js";
+import { sendPushNotification } from "./pushNotificationService.js";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -88,6 +89,16 @@ export async function createVerificationRequestsForEvent(eventId) {
         certificate_id:    reg.certificate_id    ?? null,
       });
       created++;
+
+      User.findOne({ faculty_id: slot.faculty_id }).select("_id").then((facultyUser) => {
+        if (!facultyUser) return;
+        sendPushNotification(
+          facultyUser._id,
+          "New verification request",
+          `New attendance verification request from ${student.name ?? student.userId}`,
+          { type: "verification_request" }
+        );
+      }).catch(() => {});
     }
   }
 

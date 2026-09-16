@@ -8,6 +8,7 @@ import User         from "../models/User.js";
 import { verifyToken } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
 import { uploadToCloudinary } from "../middleware/upload.js";
+import { sendPushNotification } from "../services/pushNotificationService.js";
 
 const router = express.Router();
 
@@ -68,6 +69,13 @@ router.post("/:id/register", verifyToken, requireRole("student"), async (req, re
 
         const { url } = await uploadToCloudinary(qrBuffer, "campusverse/qrcodes");
         await Registration.findByIdAndUpdate(reg._id, { qr_code_path: url, qr_token: qrToken });
+
+        sendPushNotification(
+          req.user.id,
+          "Registration confirmed!",
+          `Registered for ${event.name}! Your QR code is ready.`,
+          { type: "registration", eventId: event._id.toString(), eventName: event.name }
+        ).catch(() => {});
       } catch (qrErr) {
         console.error("QR generation failed for reg", reg._id, qrErr.message);
       }

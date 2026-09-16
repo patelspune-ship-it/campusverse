@@ -39,6 +39,7 @@ import clubRoutes    from "./routes/club.js";
 import facultyRoutes from "./routes/faculty.js";
 import adminRoutes      from "./routes/admin.js";
 import attendanceRoutes from "./routes/attendance.js";
+import userRoutes       from "./routes/user.js";
 
 // ✅ MongoDB Connection
 async function connectDB() {
@@ -66,6 +67,7 @@ app.use("/api/club", clubRoutes);
 app.use("/api/faculty",     facultyRoutes);
 app.use("/api/admin",      adminRoutes);
 app.use("/api/attendance", attendanceRoutes);
+app.use("/api/user",       userRoutes);
 
 // Test Route
 app.get("/", (req, res) => res.send("CampusVerse API Running ✅"));
@@ -110,6 +112,6 @@ const __dirname = new URL('.', import.meta.url).pathname;
 
 app.use(express.static(path.join(__dirname, "../build")));
 
-app.get("*", (req, res) => {
+app.get("/{*splat}", (req, res) => {
   res.sendFile(path.join(__dirname, "../build/index.html"));
 });

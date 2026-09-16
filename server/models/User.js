@@ -42,6 +42,9 @@ const userSchema = new mongoose.Schema({
 
   // Faculty users: pointer to their Faculty profile document
   faculty_id: { type: mongoose.Schema.Types.ObjectId, ref: "Faculty", default: null },
+
+  // Expo push token for this user's current device, if push notifications are enabled.
+  push_token: { type: String, default: null },
 });
 
 export default mongoose.model("User", userSchema);

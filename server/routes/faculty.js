@@ -5,6 +5,7 @@ import Faculty   from "../models/Faculty.js";
 import Timetable from "../models/Timetable.js";
 import AttendanceVerificationRequest from "../models/AttendanceVerificationRequest.js";
 import User from "../models/User.js";
+import { sendPushNotification } from "../services/pushNotificationService.js";
 
 const router = express.Router();
 router.use(verifyToken, requireRole("faculty"));
@@ -122,6 +123,14 @@ router.patch("/verifications/:id/approve", async (req, res) => {
       { new: true }
     );
     if (!avr) return res.status(404).json({ message: "Request not found or already actioned" });
+
+    sendPushNotification(
+      avr.student_id,
+      "OD Approved",
+      `Your OD for ${avr.subject_name} was approved.`,
+      { type: "verification_decision" }
+    ).catch(() => {});
+
     res.json({ message: "Approved", avr });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -141,6 +150,14 @@ router.patch("/verifications/:id/reject", async (req, res) => {
       { new: true }
     );
     if (!avr) return res.status(404).json({ message: "Request not found or already actioned" });
+
+    sendPushNotification(
+      avr.student_id,
+      "OD Rejected",
+      `Your OD for ${avr.subject_name} was rejected.`,
+      { type: "verification_decision" }
+    ).catch(() => {});
+
     res.json({ message: "Rejected", avr });
   } catch (err) {
     res.status(500).json({ message: err.message });
