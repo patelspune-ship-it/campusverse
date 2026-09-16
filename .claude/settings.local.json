@@ -30,7 +30,8 @@
       "Bash(node -e ' *)",
       "Bash(node -e ' *2)",
       "Bash(node scripts/seedFullAttendance.js)",
-      "Bash(node scripts/seedTimetable.js)"
+      "Bash(node scripts/seedTimetable.js)",
+      "Bash(npm run *)"
     ]
   }
 }

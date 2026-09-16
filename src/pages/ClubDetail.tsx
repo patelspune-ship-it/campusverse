@@ -9,6 +9,11 @@ import { Calendar, MapPin, ImageOff, Instagram, Linkedin, Mail, ArrowLeft, Users
 import { apiRequest } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+interface CoreTeamMember {
+  name: string;
+  role: string;
+}
+
 interface ClubData {
   _id: string;
   name: string;
@@ -21,6 +26,10 @@ interface ClubData {
   social_linkedin: string | null;
   social_email: string | null;
   institute_id: { _id: string; name: string; code: string } | null;
+  core_team: CoreTeamMember[];
+  recruitment_open: boolean;
+  recruitment_contact: string | null;
+  recruitment_message: string | null;
   upcomingEvents: RawEvent[];
   pastEvents: PastEvent[];
 }
@@ -83,8 +92,13 @@ const ClubDetail = () => {
     const load = async () => {
       try {
         const data = await apiRequest(`/api/public/clubs/${id}`);
-        if (data?._id) {
-          setClub(data);
+        // API returns { club: {...}, upcomingEvents: [...], pastEvents: [...] }
+        if (data?.club?._id) {
+          setClub({
+            ...data.club,
+            upcomingEvents: data.upcomingEvents ?? [],
+            pastEvents:     data.pastEvents     ?? [],
+          });
         } else {
           setNotFound(true);
         }
@@ -242,6 +256,58 @@ const ClubDetail = () => {
               <p className="text-muted-foreground leading-relaxed">{club.description}</p>
             </CardContent>
           </Card>
+        )}
+
+        {/* Recruitment Banner */}
+        {club.recruitment_open && (
+          <Card className="border-amber-400 bg-amber-50 dark:bg-amber-950/20 shadow-[var(--shadow-soft)]">
+            <CardContent className="py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-bold text-lg text-amber-800 dark:text-amber-400">🎯 We are Recruiting!</h3>
+                {club.recruitment_message && (
+                  <p className="text-amber-700 dark:text-amber-500 mt-1 text-sm">{club.recruitment_message}</p>
+                )}
+              </div>
+              {club.recruitment_contact && (
+                <Button asChild className="bg-amber-500 hover:bg-amber-600 text-white gap-2 flex-shrink-0">
+                  <a href={`mailto:${club.recruitment_contact}`}>
+                    <Mail className="w-4 h-4" /> Email to Apply
+                  </a>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Core Team */}
+        {club.core_team?.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold">Core Team</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {club.core_team.map((member, i) => {
+                const initials = member.name
+                  .split(" ")
+                  .map((w) => w[0])
+                  .join("")
+                  .slice(0, 2)
+                  .toUpperCase();
+                const bg = avatarColor[i % avatarColor.length];
+                return (
+                  <Card key={i} className="shadow-[var(--shadow-soft)]">
+                    <CardContent className="pt-6 pb-5 flex flex-col items-center text-center gap-3">
+                      <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${bg} flex items-center justify-center`}>
+                        <span className="text-white font-bold text-lg">{initials}</span>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm leading-tight">{member.name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{member.role}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* Upcoming Events */}

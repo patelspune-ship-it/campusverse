@@ -27,6 +27,12 @@ const clubSchema = new mongoose.Schema(
 
     // Becomes true only when club admin has filled all required profile fields
     profile_completed: { type: Boolean, default: false },
+
+    // Rich profile fields — seeded for featured clubs, optional for all others
+    core_team:            { type: [{ name: String, role: String }], default: [] },
+    recruitment_open:     { type: Boolean, default: false },
+    recruitment_contact:  { type: String,  default: null },
+    recruitment_message:  { type: String,  default: null },
   },
   { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } }
 );

@@ -1,7 +1,9 @@
-// Vite dev server proxies /api → http://localhost:5000 internally.
-// So API calls use the same origin as the page — no hardcoded port needed.
-// https://192.168.29.150:8080/api/... → proxy → http://localhost:5000/api/...
-export const API_URL = window.location.origin;
+export const API_URL =
+  import.meta.env.VITE_API_URL ||
+  `${window.location.protocol}//${window.location.hostname}:5000`;
+
+console.log("Campus Verse API_URL =", API_URL);
+console.log("VITE_API_URL env =", import.meta.env.VITE_API_URL);
 
 /** JSON requests — automatically attaches Bearer token */
 export async function apiRequest(path: string, method = "GET", body?: any) {

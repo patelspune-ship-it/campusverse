@@ -16,6 +16,10 @@ const allowedOrigins = [
   "http://localhost:8080",
   /^http:\/\/192\.168\.\d+\.\d+:8080$/,
   /^http:\/\/192\.168\.\d+\.\d+:5173$/,
+  /^https:\/\/.*\.onrender\.com$/,
+  "https://campusverse-nu.vercel.app",
+  /^https:\/\/campusverse-.*\.vercel\.app$/,
+  /^https:\/\/.*\.vercel\.app$/,
 ];
 app.use(cors({
   origin: (origin, callback) => {
@@ -112,6 +116,6 @@ const __dirname = new URL('.', import.meta.url).pathname;
 
 app.use(express.static(path.join(__dirname, "../build")));
 
-app.get("/{*splat}", (req, res) => {
+app.get("/{*path}", (req, res) => {
   res.sendFile(path.join(__dirname, "../build/index.html"));
 });
