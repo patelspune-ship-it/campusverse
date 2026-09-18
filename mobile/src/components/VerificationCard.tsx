@@ -6,14 +6,22 @@ import { colors, radius, shadow, spacing } from "../theme/theme";
 // The AVR record only carries a certificate_id, not a direct file URL — the
 // web app resolves it via its own SPA route, hosted separately from the API.
 
-function formatDate(iso: string) {
+function formatDate(iso: string | null) {
+  if (!iso) return "Date pending";
   const date = new Date(iso);
   return isNaN(date.getTime()) ? "Date pending" : date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
+
+function formatTime(iso: string | null) {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  return isNaN(date.getTime()) ? "—" : date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
 type Props = { request: VerificationRequest; children?: React.ReactNode };
 
 export function VerificationCard({ request, children }: Props) {
+  const division = request.student_id?.division_id;
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
@@ -21,13 +29,13 @@ export function VerificationCard({ request, children }: Props) {
       </View>
       <Text style={styles.meta}>
         {request.student_id?.userId}
-        {request.student_id?.division_id?.division_code ? ` · ${request.student_id.division_id.division_code}` : ""}
+        {division ? ` · ${division.year ? `${division.year} ` : ""}${division.name}` : ""}
       </Text>
 
       <View style={styles.detailBlock}>
-        <Detail label="Subject" value={request.subject_name} />
-        <Detail label="Lecture" value={`${formatDate(request.lecture_date)} ${request.lecture_start_time}–${request.lecture_end_time}`} />
-        <Detail label="Event" value={`${request.event_id?.name ?? "—"}${request.event_id?.club_id?.name ? ` (${request.event_id.club_id.name})` : ""}`} />
+        <Detail label="Event" value={`${request.event_id?.name ?? request.event_name}${request.event_id?.club_id?.name ? ` (${request.event_id.club_id.name})` : ""}`} />
+        <Detail label="Date" value={formatDate(request.event_date)} />
+        <Detail label="Entry–Exit" value={`${formatTime(request.event_entry_time)}–${formatTime(request.event_exit_time)}`} />
         {request.event_duration_minutes != null && <Detail label="Attended" value={`${request.event_duration_minutes} min · Entry + Exit scanned`} />}
         {!!request.certificate_id && (
           <Pressable onPress={() => Linking.openURL(`${WEB_APP_URL}/verify/${request.certificate_id}`)}>

@@ -7,6 +7,7 @@ import Club         from "../models/Club.js";
 import Event        from "../models/Event.js";
 import Institute    from "../models/Institute.js";
 import Registration from "../models/Registration.js";
+import Department   from "../models/Department.js";
 import Division     from "../models/Division.js";
 
 const router = express.Router();
@@ -114,13 +115,32 @@ router.get("/institutes", async (req, res) => {
   }
 });
 
-// ─── DIVISIONS (for student signup dropdown) ─────────────────
-// GET /api/public/divisions
+// ─── DEPARTMENTS (for student signup dropdown, cascades from institute) ──
+// GET /api/public/departments?institute_id=
+router.get("/departments", async (req, res) => {
+  try {
+    const { institute_id } = req.query;
+    const filter = {};
+    if (institute_id) filter.institute_id = institute_id;
+    const departments = await Department.find(filter).sort({ name: 1 });
+    res.json(departments);
+  } catch {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ─── DIVISIONS (for student signup dropdown, cascades from department+year) ──
+// GET /api/public/divisions?department_id=&year=
 router.get("/divisions", async (req, res) => {
   try {
-    const divisions = await Division.find()
-      .populate("institute_id", "name code")
-      .sort({ division_code: 1 });
+    const { department_id, year } = req.query;
+    const filter = {};
+    if (department_id) filter.department_id = department_id;
+    if (year)           filter.year = year;
+
+    const divisions = await Division.find(filter)
+      .populate({ path: "department_id", select: "name code institute_id", populate: { path: "institute_id", select: "name code" } })
+      .sort({ year: 1, name: 1 });
     res.json(divisions);
   } catch {
     res.status(500).json({ message: "Server error" });

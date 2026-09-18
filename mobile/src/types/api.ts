@@ -38,14 +38,15 @@ export type ScanResponse = { success: true; scan_type: "entry" | "exit"; student
 export type VerificationStatus = "pending" | "approved" | "rejected";
 
 // GET /faculty/verifications?status=...
+// Routing is now class-teacher based: one request per student per event,
+// carrying the event details + verified entry/exit rather than a
+// timetable slot's subject/lecture time (those fields no longer exist).
 export type VerificationRequest = {
   _id: string;
-  student_id: { name: string; userId: string; division_id?: { division_code: string; year?: string } } | null;
-  event_id: { name: string; club_id?: { name: string } } | null;
-  subject_name: string;
-  lecture_date: string;
-  lecture_start_time: string;
-  lecture_end_time: string;
+  student_id: { name: string; userId: string; division_id?: { name: string; year?: string } | null } | null;
+  event_id: { name: string; club_id?: { name: string } | null } | null;
+  event_name: string;
+  event_date: string | null;
   event_duration_minutes: number | null;
   event_entry_time: string | null;
   event_exit_time: string | null;
@@ -53,6 +54,37 @@ export type VerificationRequest = {
   status: VerificationStatus;
   rejection_reason: string | null;
   faculty_action_at: string | null;
+};
+
+// GET /faculty/my-division — the division(s) this faculty is class teacher of.
+export type FacultyDivision = {
+  _id: string;
+  name: string;
+  year: string;
+  academic_year: string;
+  department_id: {
+    _id: string;
+    name: string;
+    code: string;
+    institute_id?: { _id: string; name: string; code: string } | null;
+  } | null;
+};
+
+// GET /student/my-division — the logged-in student's division + class teacher.
+// Both division and class_teacher can independently be null; has_division /
+// has_class_teacher are explicit flags rather than erroring so the UI can
+// show a clear message instead of guessing from null.
+export type StudentDivisionInfo = {
+  has_division: boolean;
+  division: {
+    _id: string;
+    name: string;
+    year: string;
+    department: { _id: string; name: string; code: string } | null;
+    institute: { _id: string; name: string } | null;
+  } | null;
+  has_class_teacher: boolean;
+  class_teacher: { _id: string; full_name: string; faculty_code: string } | null;
 };
 
 // GET /admin/stats

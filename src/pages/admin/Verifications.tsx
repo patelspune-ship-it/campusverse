@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Clock, CheckCircle, XCircle, Filter, Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Clock, Filter, Search, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -19,11 +19,12 @@ interface AVR {
   student_id: { name: string; userId: string };
   faculty_id: { full_name: string; faculty_code: string };
   event_id: { name: string };
-  subject_name: string;
-  lecture_date: string;
-  lecture_start_time: string;
-  lecture_end_time: string;
+  event_name: string;
+  event_date: string | null;
+  event_entry_time: string | null;
+  event_exit_time: string | null;
   event_duration_minutes: number | null;
+  certificate_id: string | null;
   status: string;
   faculty_action_at: string | null;
   rejection_reason: string | null;
@@ -36,19 +37,22 @@ const statusStyle: Record<string, string> = {
 };
 
 const AdminVerifications = () => {
+  const navigate = useNavigate();
   const [rows, setRows]       = useState<AVR[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch]             = useState("");
-  const [dateFrom, setDateFrom]         = useState("");
-  const [dateTo, setDateTo]             = useState("");
+
+  // NOTE: date_from/date_to are intentionally not sent — the backend
+  // /api/admin/verifications route still filters on a removed `lecture_date`
+  // field (a leftover from the class-teacher routing refactor), so a date
+  // range currently returns zero rows. Needs a backend fix (filter on
+  // `event_date` instead) before a date filter can be reintroduced here.
 
   const fetchRows = () => {
     setLoading(true);
     const params = new URLSearchParams();
     if (statusFilter !== "all") params.set("status", statusFilter);
-    if (dateFrom) params.set("date_from", dateFrom);
-    if (dateTo)   params.set("date_to",   dateTo);
     if (search)   params.set("search",    search);
 
     apiRequest(`/api/admin/verifications?${params}`)
@@ -59,8 +63,11 @@ const AdminVerifications = () => {
 
   useEffect(() => { fetchRows(); }, []);
 
-  const fmt = (iso: string) =>
-    new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const fmt = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
+
+  const fmtTime = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—";
 
   return (
     <div className="p-6 space-y-6">
@@ -76,7 +83,7 @@ const AdminVerifications = () => {
           <CardTitle className="text-sm font-semibold flex items-center gap-2"><Filter className="w-4 h-4" /> Filters</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="h-10"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
@@ -86,8 +93,6 @@ const AdminVerifications = () => {
                 <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
-            <Input type="date" className="h-10" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-            <Input type="date" className="h-10" value={dateTo}   onChange={(e) => setDateTo(e.target.value)} />
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Search student or event…" className="h-10 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -95,7 +100,7 @@ const AdminVerifications = () => {
           </div>
           <div className="flex gap-3">
             <Button onClick={fetchRows} className="h-10">Apply</Button>
-            <Button variant="outline" className="h-10" onClick={() => { setStatusFilter("all"); setDateFrom(""); setDateTo(""); setSearch(""); }}>Reset</Button>
+            <Button variant="outline" className="h-10" onClick={() => { setStatusFilter("all"); setSearch(""); }}>Reset</Button>
           </div>
         </CardContent>
       </Card>
@@ -115,10 +120,11 @@ const AdminVerifications = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Student</TableHead>
-                    <TableHead>Faculty</TableHead>
-                    <TableHead>Subject</TableHead>
-                    <TableHead>Lecture</TableHead>
+                    <TableHead>Class Teacher</TableHead>
                     <TableHead>Event</TableHead>
+                    <TableHead>Entry–Exit</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Certificate</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Action Date</TableHead>
                   </TableRow>
@@ -134,12 +140,26 @@ const AdminVerifications = () => {
                         <p className="text-sm">{r.faculty_id?.full_name}</p>
                         <p className="text-xs text-muted-foreground">{r.faculty_id?.faculty_code}</p>
                       </TableCell>
-                      <TableCell className="text-sm">{r.subject_name}</TableCell>
                       <TableCell className="text-sm whitespace-nowrap">
-                        {fmt(r.lecture_date)}<br />
-                        <span className="text-xs text-muted-foreground">{r.lecture_start_time}–{r.lecture_end_time}</span>
+                        {r.event_id?.name ?? r.event_name}<br />
+                        <span className="text-xs text-muted-foreground">{fmt(r.event_date)}</span>
                       </TableCell>
-                      <TableCell className="text-sm">{r.event_id?.name}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {fmtTime(r.event_entry_time)}–{fmtTime(r.event_exit_time)}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {r.event_duration_minutes ? `${r.event_duration_minutes} min` : "—"}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {r.certificate_id ? (
+                          <button
+                            className="text-primary underline font-mono text-xs"
+                            onClick={() => navigate(`/verify/${r.certificate_id}`)}
+                          >
+                            {r.certificate_id} <ExternalLink className="w-3 h-3 inline" />
+                          </button>
+                        ) : "—"}
+                      </TableCell>
                       <TableCell>
                         <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full capitalize", statusStyle[r.status])}>
                           {r.status}

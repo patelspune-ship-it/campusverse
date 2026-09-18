@@ -11,7 +11,7 @@ const router = express.Router();
 router.post("/register", async (req, res) => {
   const {
     userId, email, mobile, password,
-    name, department, year, institute_id, division_id,
+    name, institute_id, division_id,
   } = req.body;
 
   try {
@@ -29,9 +29,7 @@ router.post("/register", async (req, res) => {
       mobile:               mobile || null,
       password:             hashed,
       role:                 "student",
-      name:                 name       || null,
-      department:           department || null,
-      year:                 year       || null,
+      name:                 name         || null,
       institute_id:         institute_id || null,
       division_id:          division_id  || null,
       profile_completed:    true,

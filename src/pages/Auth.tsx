@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, API_URL } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import { resetMyDivisionCache } from "@/hooks/useMyDivision";
 
 // ── Schemas ─────────────────────────────────────────────────
 const loginSchema = z.object({
@@ -23,16 +24,16 @@ const loginSchema = z.object({
 
 const signupSchema = z
   .object({
-    name:         z.string().min(2, "Full name is required"),
-    email:        z.string().email("Enter a valid email"),
-    userId:       z.string().min(3, "College ID / PRN is required"),
-    password:     z.string().min(8, "Password must be at least 8 characters"),
-    confirm:      z.string().min(1, "Please confirm your password"),
-    institute_id: z.string().min(1, "Select your institute"),
-    division_id:  z.string().optional(),
-    department:   z.string().min(2, "Department is required"),
-    year:         z.string().min(1, "Select your year"),
-    mobile:       z.string().optional(),
+    name:          z.string().min(2, "Full name is required"),
+    email:         z.string().email("Enter a valid email"),
+    userId:        z.string().min(3, "College ID / PRN is required"),
+    password:      z.string().min(8, "Password must be at least 8 characters"),
+    confirm:       z.string().min(1, "Please confirm your password"),
+    institute_id:  z.string().min(1, "Select your institute"),
+    department_id: z.string().min(1, "Select your department"),
+    year:          z.string().min(1, "Select your year"),
+    division_id:   z.string().min(1, "Select your division"),
+    mobile:        z.string().optional(),
   })
   .refine((d) => d.password === d.confirm, {
     message: "Passwords do not match",
@@ -42,44 +43,78 @@ const signupSchema = z
 type LoginValues  = z.infer<typeof loginSchema>;
 type SignupValues = z.infer<typeof signupSchema>;
 
-interface Institute { _id: string; name: string; code: string }
-interface Division  {
-  _id: string;
-  division_code: string;
-  department: string;
-  year: string;
-  institute_id: { _id: string; name: string };
-}
+interface Institute  { _id: string; name: string; code: string }
+interface Department { _id: string; name: string; code: string; institute_id: string }
+interface Division   { _id: string; name: string; year: string; academic_year: string }
+
+const YEARS = ["FY", "SY", "TY", "BTech1", "BTech2", "BTech3", "BTech4"];
 
 const Auth = () => {
   const navigate = useNavigate();
   const { login, loading } = useAuth();
   const [isLogin, setIsLogin]         = useState(true);
   const [institutes, setInstitutes]   = useState<Institute[]>([]);
+  const [institutesLoading, setInstitutesLoading] = useState(true);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
   const [divisions, setDivisions]     = useState<Division[]>([]);
+  const [divisionsLoading, setDivisionsLoading] = useState(false);
   const [signupLoading, setSignupLoading] = useState(false);
 
   useEffect(() => {
     apiRequest("/api/public/institutes")
       .then((data) => { if (Array.isArray(data)) setInstitutes(data); })
-      .catch(() => {});
-    apiRequest("/api/public/divisions")
-      .then((data) => { if (Array.isArray(data)) setDivisions(data); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setInstitutesLoading(false));
   }, []);
+
+  const signupForm = useForm<SignupValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      name: "", email: "", userId: "", password: "", confirm: "",
+      institute_id: "", department_id: "", year: "", division_id: "", mobile: "",
+    },
+  });
 
   const loginForm = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { role: "student", userId: "", password: "" },
   });
 
-  const signupForm = useForm<SignupValues>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: {
-      name: "", email: "", userId: "", password: "", confirm: "",
-      institute_id: "", division_id: "", department: "", year: "", mobile: "",
-    },
-  });
+  const instituteId  = signupForm.watch("institute_id");
+  const departmentId = signupForm.watch("department_id");
+  const year          = signupForm.watch("year");
+
+  // Institute changed → reset department/year/division, fetch departments
+  useEffect(() => {
+    signupForm.setValue("department_id", "");
+    signupForm.setValue("year", "");
+    signupForm.setValue("division_id", "");
+    setDepartments([]);
+    setDivisions([]);
+    if (!instituteId) return;
+
+    setDepartmentsLoading(true);
+    apiRequest(`/api/public/departments?institute_id=${instituteId}`)
+      .then((data) => { if (Array.isArray(data)) setDepartments(data); })
+      .catch(() => toast.error("Failed to load departments"))
+      .finally(() => setDepartmentsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instituteId]);
+
+  // Department or year changed → reset division, fetch divisions once both are set
+  useEffect(() => {
+    signupForm.setValue("division_id", "");
+    setDivisions([]);
+    if (!departmentId || !year) return;
+
+    setDivisionsLoading(true);
+    apiRequest(`/api/public/divisions?department_id=${departmentId}&year=${year}`)
+      .then((data) => { if (Array.isArray(data)) setDivisions(data); })
+      .catch(() => toast.error("Failed to load divisions"))
+      .finally(() => setDivisionsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departmentId, year]);
 
   const roleValue         = loginForm.watch("role");
   const userIdLabel       = roleValue === "student" ? "PRN / College ID" : "Email Address";
@@ -103,14 +138,6 @@ const Auth = () => {
 
   // ── Signup submit ─────────────────────────────────────────
   const onSignup = async (values: SignupValues) => {
-    const allValues   = signupForm.getValues();
-    const institute_id = allValues.institute_id || values.institute_id;
-    const year         = allValues.year         || values.year;
-    const division_id  = allValues.division_id  || values.division_id || null;
-
-    if (!institute_id) { toast.error("Please select your institute"); return; }
-    if (!year)         { toast.error("Please select your year");      return; }
-
     setSignupLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/auth/register`, {
@@ -122,10 +149,8 @@ const Auth = () => {
           mobile:       values.mobile || null,
           password:     values.password,
           name:         values.name,
-          department:   values.department,
-          year,
-          institute_id,
-          division_id,
+          institute_id: values.institute_id,
+          division_id:  values.division_id,
         }),
       });
 
@@ -139,6 +164,7 @@ const Auth = () => {
       if (data.token) {
         localStorage.setItem("cv_token", data.token);
         localStorage.setItem("cv_user",  JSON.stringify(data.user));
+        resetMyDivisionCache();
         toast.success("Account created! Welcome to CampusVerse!");
         navigate("/dashboard");
       }
@@ -281,9 +307,10 @@ const Auth = () => {
                 <Select
                   value={signupForm.watch("institute_id")}
                   onValueChange={(v) => signupForm.setValue("institute_id", v, { shouldValidate: true })}
+                  disabled={institutesLoading}
                 >
                   <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Select your institute" />
+                    <SelectValue placeholder={institutesLoading ? "Loading institutes…" : "Select your institute"} />
                   </SelectTrigger>
                   <SelectContent>
                     {institutes.map((i) => (
@@ -296,66 +323,88 @@ const Auth = () => {
                 )}
               </div>
 
-              {/* Division (optional but important for attendance routing) */}
-              {divisions.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Division <span className="text-muted-foreground text-xs">(optional — enables faculty attendance verification)</span></Label>
-                  <Select
-                    value={signupForm.watch("division_id") || "none"}
-                    onValueChange={(v) => signupForm.setValue("division_id", v === "none" ? "" : v)}
-                  >
-                    <SelectTrigger className="h-11">
-                      <SelectValue placeholder="Select your division" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">— No division —</SelectItem>
-                      {divisions.map((d) => (
-                        <SelectItem key={d._id} value={d._id}>
-                          {d.institute_id?.name} — {d.department} — {d.division_code}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
               {/* Department */}
               <div className="space-y-2">
-                <Label htmlFor="s-dept">Department *</Label>
-                <Input id="s-dept" placeholder="e.g. Computer Science" className="h-11" {...signupForm.register("department")} />
-                {signupForm.formState.errors.department && (
-                  <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.department.message}</p>
+                <Label>Department *</Label>
+                <Select
+                  value={signupForm.watch("department_id")}
+                  onValueChange={(v) => signupForm.setValue("department_id", v, { shouldValidate: true })}
+                  disabled={!instituteId || departmentsLoading}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue
+                      placeholder={
+                        !instituteId ? "Select an institute first"
+                        : departmentsLoading ? "Loading departments…"
+                        : departments.length === 0 ? "No departments found"
+                        : "Select your department"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((d) => (
+                      <SelectItem key={d._id} value={d._id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {signupForm.formState.errors.department_id && (
+                  <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.department_id.message}</p>
                 )}
               </div>
 
-              {/* Year + Mobile */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Year *</Label>
-                  <Select
-                    value={signupForm.watch("year")}
-                    onValueChange={(v) => signupForm.setValue("year", v, { shouldValidate: true })}
-                  >
-                    <SelectTrigger className="h-11">
-                      <SelectValue placeholder="Year" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1st Year</SelectItem>
-                      <SelectItem value="2">2nd Year</SelectItem>
-                      <SelectItem value="3">3rd Year</SelectItem>
-                      <SelectItem value="4">4th Year</SelectItem>
-                      <SelectItem value="5">5th Year</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {signupForm.formState.errors.year && (
-                    <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.year.message}</p>
-                  )}
-                </div>
+              {/* Year */}
+              <div className="space-y-2">
+                <Label>Year *</Label>
+                <Select
+                  value={signupForm.watch("year")}
+                  onValueChange={(v) => signupForm.setValue("year", v, { shouldValidate: true })}
+                  disabled={!departmentId}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder={!departmentId ? "Select a department first" : "Select your year"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {YEARS.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {signupForm.formState.errors.year && (
+                  <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.year.message}</p>
+                )}
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="s-mobile">Phone (optional)</Label>
-                  <Input id="s-mobile" type="tel" placeholder="9876543210" className="h-11" {...signupForm.register("mobile")} />
-                </div>
+              {/* Division */}
+              <div className="space-y-2">
+                <Label>Division *</Label>
+                <Select
+                  value={signupForm.watch("division_id")}
+                  onValueChange={(v) => signupForm.setValue("division_id", v, { shouldValidate: true })}
+                  disabled={!departmentId || !year || divisionsLoading}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue
+                      placeholder={
+                        !departmentId || !year ? "Select department + year first"
+                        : divisionsLoading ? "Loading divisions…"
+                        : divisions.length === 0 ? "No divisions found"
+                        : "Select your division"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {divisions.map((d) => (
+                      <SelectItem key={d._id} value={d._id}>Division {d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {signupForm.formState.errors.division_id && (
+                  <p className="text-sm font-medium text-destructive">{signupForm.formState.errors.division_id.message}</p>
+                )}
+              </div>
+
+              {/* Mobile */}
+              <div className="space-y-2">
+                <Label htmlFor="s-mobile">Phone (optional)</Label>
+                <Input id="s-mobile" type="tel" placeholder="9876543210" className="h-11" {...signupForm.register("mobile")} />
               </div>
 
               <Button

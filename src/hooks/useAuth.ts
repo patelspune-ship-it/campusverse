@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { API_URL as BASE_URL } from "../lib/api";
+import { resetMyDivisionCache } from "./useMyDivision";
 
 const API_URL = `${BASE_URL}/api/auth`;
 
@@ -29,6 +30,7 @@ export function useAuth() {
       if (!res.ok) throw new Error(data.message);
       localStorage.setItem("cv_token", data.token);
       localStorage.setItem("cv_user",  JSON.stringify(data.user));
+      resetMyDivisionCache();
       return { success: true };
     } catch (err: any) {
       return { success: false, message: err.message };
@@ -52,6 +54,7 @@ export function useAuth() {
       if (data.token) {
         localStorage.setItem("cv_token", data.token);
         localStorage.setItem("cv_user",  JSON.stringify(data.user));
+        resetMyDivisionCache();
       }
       return { success: true };
     } catch (err: any) {

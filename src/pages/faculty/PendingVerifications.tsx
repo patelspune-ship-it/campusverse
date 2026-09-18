@@ -12,20 +12,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { apiRequest } from "@/lib/api";
 
 interface AVR {
   _id: string;
-  student_id: { name: string; userId: string; division_id?: { division_code: string } };
+  student_id: { name: string; userId: string; division_id?: { name: string; year: string } };
   faculty_id: { full_name: string; faculty_code: string };
   event_id: { name: string; club_id?: { name: string } };
-  subject_name: string;
-  lecture_date: string;
-  lecture_start_time: string;
-  lecture_end_time: string;
+  event_name: string;
+  event_date: string | null;
   event_duration_minutes: number | null;
   event_entry_time: string | null;
   event_exit_time: string | null;
@@ -48,14 +43,12 @@ const PendingVerifications = () => {
 
   // Filters
   const [search, setSearch]       = useState("");
-  const [subjectFilter, setSubjectFilter] = useState("all");
   const [dateFrom, setDateFrom]   = useState("");
   const [dateTo, setDateTo]       = useState("");
 
   const fetch = useCallback(() => {
     setLoading(true);
     const params = new URLSearchParams({ status: "pending" });
-    if (subjectFilter !== "all") params.set("subject", subjectFilter);
     if (dateFrom) params.set("date_from", dateFrom);
     if (dateTo)   params.set("date_to",   dateTo);
     if (search)   params.set("search",    search);
@@ -64,11 +57,9 @@ const PendingVerifications = () => {
       .then((d) => { if (Array.isArray(d)) setRows(d); })
       .catch(() => toast.error("Failed to load verifications"))
       .finally(() => setLoading(false));
-  }, [subjectFilter, dateFrom, dateTo, search]);
+  }, [dateFrom, dateTo, search]);
 
   useEffect(() => { fetch(); }, []);
-
-  const subjects = [...new Set(rows.map((r) => r.subject_name))].sort();
 
   const handleApprove = async (id: string) => {
     setActioning(id);
@@ -124,11 +115,13 @@ const PendingVerifications = () => {
   const toggleAll = () =>
     setSelected(selected.size === rows.length ? new Set() : new Set(rows.map((r) => r._id)));
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  const formatDate = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "—";
+
+  const formatTime = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—";
 
   const filtered = rows.filter((r) => {
-    if (subjectFilter !== "all" && r.subject_name !== subjectFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -169,14 +162,7 @@ const PendingVerifications = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-              <SelectTrigger className="h-10"><SelectValue placeholder="All subjects" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Subjects</SelectItem>
-                {subjects.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input type="date" className="h-10" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             <Input type="date" className="h-10" value={dateTo}   onChange={(e) => setDateTo(e.target.value)} />
           </div>
@@ -186,7 +172,7 @@ const PendingVerifications = () => {
               <Input placeholder="Search student or event…" className="h-10 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <Button onClick={fetch} className="h-10">Apply</Button>
-            <Button variant="outline" className="h-10" onClick={() => { setSubjectFilter("all"); setDateFrom(""); setDateTo(""); setSearch(""); }}>Reset</Button>
+            <Button variant="outline" className="h-10" onClick={() => { setDateFrom(""); setDateTo(""); setSearch(""); }}>Reset</Button>
           </div>
         </CardContent>
       </Card>
@@ -231,7 +217,10 @@ const PendingVerifications = () => {
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <p className="font-semibold text-sm">{r.student_id?.name}</p>
-                          <p className="text-xs text-muted-foreground">{r.student_id?.userId} · {r.student_id?.division_id?.division_code}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {r.student_id?.userId}
+                            {r.student_id?.division_id && ` · ${r.student_id.division_id.year} ${r.student_id.division_id.name}`}
+                          </p>
                         </div>
                         <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 text-xs shrink-0">
                           Pending
@@ -239,10 +228,10 @@ const PendingVerifications = () => {
                       </div>
 
                       <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs text-muted-foreground">
-                        <span><span className="font-medium text-foreground">Subject:</span> {r.subject_name}</span>
-                        <span><span className="font-medium text-foreground">Lecture:</span> {formatDate(r.lecture_date)} {r.lecture_start_time}–{r.lecture_end_time}</span>
-                        <span><span className="font-medium text-foreground">Event:</span> {r.event_id?.name} ({r.event_id?.club_id?.name})</span>
-                        <span><span className="font-medium text-foreground">Attended:</span> {r.event_duration_minutes ? `${r.event_duration_minutes} min` : "—"}
+                        <span><span className="font-medium text-foreground">Event:</span> {r.event_id?.name ?? r.event_name} {r.event_id?.club_id?.name && `(${r.event_id.club_id.name})`}</span>
+                        <span><span className="font-medium text-foreground">Date:</span> {formatDate(r.event_date)}</span>
+                        <span><span className="font-medium text-foreground">Entry–Exit:</span> {formatTime(r.event_entry_time)}–{formatTime(r.event_exit_time)}</span>
+                        <span><span className="font-medium text-foreground">Duration:</span> {r.event_duration_minutes ? `${r.event_duration_minutes} min` : "—"}
                           {" "}<span className="text-green-600 font-medium">(Entry + Exit scanned)</span>
                         </span>
                         {r.certificate_id && (

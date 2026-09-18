@@ -37,6 +37,7 @@ import AllClubs           from "./pages/admin/AllClubs";
 import AllStudents        from "./pages/admin/AllStudents";
 import Institutes         from "./pages/admin/Institutes";
 import AdminVerifications from "./pages/admin/Verifications";
+import AdminHierarchy     from "./pages/admin/Hierarchy";
 
 // Faculty
 import FacultyLayout        from "./components/faculty/FacultyLayout";
@@ -44,7 +45,6 @@ import FacultyDashboard     from "./pages/faculty/Dashboard";
 import PendingVerifications from "./pages/faculty/PendingVerifications";
 import FacultyApproved      from "./pages/faculty/Approved";
 import FacultyRejected      from "./pages/faculty/Rejected";
-import FacultyTimetable     from "./pages/faculty/Timetable";
 
 const queryClient = new QueryClient();
 
@@ -87,6 +87,7 @@ const App = () => (
             <Route path="clubs"         element={<AllClubs />} />
             <Route path="students"      element={<AllStudents />} />
             <Route path="institutes"    element={<Institutes />} />
+            <Route path="hierarchy"     element={<AdminHierarchy />} />
             <Route path="verifications" element={<AdminVerifications />} />
           </Route>
 
@@ -96,7 +97,6 @@ const App = () => (
             <Route path="pending"   element={<PendingVerifications />} />
             <Route path="approved"  element={<FacultyApproved />} />
             <Route path="rejected"  element={<FacultyRejected />} />
-            <Route path="timetable" element={<FacultyTimetable />} />
           </Route>
 
           {/* Catch-all */}

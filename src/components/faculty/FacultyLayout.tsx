@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Clock, CheckCircle, XCircle,
-  CalendarDays, Settings, LogOut, GraduationCap, Menu, X,
+  Settings, LogOut, GraduationCap, Menu, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,6 @@ const FacultyLayout = () => {
     { label: "Pending Verifications",  icon: Clock,           to: "/faculty/pending", badge: pendingCount },
     { label: "Approved",               icon: CheckCircle,     to: "/faculty/approved"             },
     { label: "Rejected",               icon: XCircle,         to: "/faculty/rejected"             },
-    { label: "My Timetable",           icon: CalendarDays,    to: "/faculty/timetable"            },
     { label: "Settings",               icon: Settings,        to: "/faculty/settings"             },
   ];
 

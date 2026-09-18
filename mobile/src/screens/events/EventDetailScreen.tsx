@@ -3,12 +3,16 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { ApiError } from "../../api/client";
 import { checkIsRegistered, registerForEvent } from "../../services/events";
+import { useSession } from "../../context/SessionContext";
+import { useMyDivision } from "../../hooks/useMyDivision";
 import { colors, radius, shadow, spacing } from "../../theme/theme";
 
 export function EventDetailScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { event } = route.params ?? {};
+  const { user } = useSession();
+  const { data: myDivision, loading: divisionLoading } = useMyDivision(user?.role === "student");
 
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [isRegistered, setIsRegistered] = useState(false);
@@ -96,6 +100,25 @@ export function EventDetailScreen() {
           <View style={styles.fullBox}><Text style={styles.fullText}>This event is full</Text></View>
         ) : (
           <>
+            {user?.role === "student" && (
+              divisionLoading ? (
+                <View style={styles.teacherBox}><ActivityIndicator color={colors.primary} size="small" /></View>
+              ) : !myDivision?.has_division ? (
+                <View style={styles.warningBox}>
+                  <Text style={styles.warningText}>You haven't been assigned to a division yet. Contact your administrator.</Text>
+                </View>
+              ) : !myDivision.has_class_teacher ? (
+                <View style={styles.warningBox}>
+                  <Text style={styles.warningText}>Your division doesn't have a class teacher assigned yet. Contact your administrator.</Text>
+                </View>
+              ) : (
+                <View style={styles.teacherBox}>
+                  <Text style={styles.teacherText}>
+                    Attendance verification will be sent to your class teacher: <Text style={styles.teacherName}>Prof. {myDivision.class_teacher?.full_name}</Text>
+                  </Text>
+                </View>
+              )
+            )}
             {!!registerError && <Text style={styles.registerError}>{registerError}</Text>}
             <Pressable onPress={handleRegister} disabled={registering} style={({ pressed }) => [styles.button, pressed && styles.buttonPressed, registering && styles.buttonLoading]}>
               {registering ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Register</Text>}
@@ -137,6 +160,11 @@ const styles = StyleSheet.create({
   link: { color: colors.primary, fontWeight: "800", fontSize: 14 },
   fullBox: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, alignItems: "center", marginTop: spacing.sm },
   fullText: { color: colors.mutedText, fontWeight: "700" },
+  teacherBox: { backgroundColor: colors.primaryLight, borderRadius: radius.md, borderWidth: 1, borderColor: colors.primary, padding: spacing.md, marginTop: spacing.sm },
+  teacherText: { color: colors.text, fontSize: 13, lineHeight: 18 },
+  teacherName: { fontWeight: "800" },
+  warningBox: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.warning, padding: spacing.md, marginTop: spacing.sm },
+  warningText: { color: colors.warning, fontSize: 13, lineHeight: 18, fontWeight: "600" },
   registerError: { color: colors.destructive, fontSize: 13, marginTop: spacing.sm },
   button: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: radius.md, backgroundColor: colors.primary, marginTop: spacing.sm },
   buttonPressed: { opacity: 0.86 },

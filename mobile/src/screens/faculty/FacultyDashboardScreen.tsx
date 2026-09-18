@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { ApiError } from "../../api/client";
-import { approveVerification, getVerifications, rejectVerification } from "../../services/faculty";
-import type { VerificationRequest } from "../../types/api";
+import { approveVerification, getMyDivision, getVerifications, rejectVerification } from "../../services/faculty";
+import type { FacultyDivision, VerificationRequest } from "../../types/api";
 import { VerificationCard } from "../../components/VerificationCard";
 import { colors, radius, spacing } from "../../theme/theme";
 
@@ -12,6 +12,7 @@ type Banner = { type: "success" | "error"; text: string };
 export function FacultyDashboardScreen() {
   const navigation = useNavigation<any>();
   const [requests, setRequests] = useState<VerificationRequest[]>([]);
+  const [myDivisions, setMyDivisions] = useState<FacultyDivision[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -32,7 +33,9 @@ export function FacultyDashboardScreen() {
     refresh ? setRefreshing(true) : setLoading(true);
     setError("");
     try {
-      setRequests(await getVerifications("pending"));
+      const [pending, divisions] = await Promise.all([getVerifications("pending"), getMyDivision()]);
+      setRequests(pending);
+      setMyDivisions(divisions);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "Could not load pending verifications.");
     } finally {
@@ -112,15 +115,29 @@ export function FacultyDashboardScreen() {
         keyExtractor={(item) => item._id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
         ListHeaderComponent={
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>Faculty Dashboard</Text>
-              <Text style={styles.copy}>Attendance verification requests for your lectures.</Text>
+          <>
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.title}>Faculty Dashboard</Text>
+                <Text style={styles.copy}>Attendance verification requests routed to you as class teacher.</Text>
+              </View>
+              <Pressable onPress={() => navigation.navigate("FacultyHistory")}>
+                <Text style={styles.historyLink}>History</Text>
+              </Pressable>
             </View>
-            <Pressable onPress={() => navigation.navigate("FacultyHistory")}>
-              <Text style={styles.historyLink}>History</Text>
-            </Pressable>
-          </View>
+
+            <View style={styles.divisionCard}>
+              {myDivisions.length === 0 ? (
+                <Text style={styles.divisionEmpty}>You are not currently assigned as class teacher of any division.</Text>
+              ) : (
+                myDivisions.map((d) => (
+                  <Text key={d._id} style={styles.divisionText}>
+                    Class teacher of: {d.year} {d.department_id?.name ?? ""} Division {d.name}
+                  </Text>
+                ))
+              )}
+            </View>
+          </>
         }
         renderItem={({ item }) => (
           <VerificationCard request={item}>
@@ -190,6 +207,9 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 22, fontWeight: "800" },
   copy: { color: colors.mutedText, fontSize: 13, marginTop: 2 },
   historyLink: { color: colors.primary, fontWeight: "800", fontSize: 14 },
+  divisionCard: { backgroundColor: colors.primaryLight, borderRadius: radius.md, borderWidth: 1, borderColor: colors.primary, padding: spacing.md, marginBottom: spacing.lg, gap: 4 },
+  divisionText: { color: colors.text, fontWeight: "700", fontSize: 13.5 },
+  divisionEmpty: { color: colors.mutedText, fontSize: 13, lineHeight: 18 },
   actionsRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
   approveButton: { flex: 1, backgroundColor: colors.accent, borderRadius: radius.sm, paddingVertical: 10, alignItems: "center", justifyContent: "center" },
   approveButtonText: { color: "white", fontWeight: "800", fontSize: 13 },

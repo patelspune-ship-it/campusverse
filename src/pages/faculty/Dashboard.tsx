@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
-import { Clock, CheckCircle, XCircle, Users, CalendarDays } from "lucide-react";
+import { Clock, CheckCircle, XCircle, Users, GraduationCap, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/api";
@@ -17,23 +17,20 @@ interface Stats {
 
 interface AVR {
   _id: string;
-  student_id: { name: string; userId: string; division_id?: { division_code: string } };
-  subject_name: string;
-  lecture_date: string;
-  lecture_start_time: string;
-  lecture_end_time: string;
+  student_id: { name: string; userId: string; division_id?: { name: string; year: string } };
+  event_name: string;
+  event_date: string | null;
   event_id: { name: string; club_id?: { name: string } };
   event_duration_minutes: number | null;
   status: string;
 }
 
-interface TimetableSlot {
+interface MyDivision {
   _id: string;
-  start_time: string;
-  end_time: string;
-  subject_name: string;
-  room_number: string | null;
-  division_id: { division_code: string; year: string };
+  year: string;
+  name: string;
+  academic_year: string;
+  department_id?: { name: string; code: string; institute_id?: { name: string; code: string } };
 }
 
 const FacultyDashboard = () => {
@@ -41,21 +38,23 @@ const FacultyDashboard = () => {
   const { refreshPending } = useOutletContext<any>();
   const [stats, setStats]         = useState<Stats | null>(null);
   const [pending, setPending]     = useState<AVR[]>([]);
-  const [schedule, setSchedule]   = useState<TimetableSlot[]>([]);
+  const [myDivisions, setMyDivisions] = useState<MyDivision[]>([]);
+  const [divisionsLoading, setDivisionsLoading] = useState(true);
   const [actioning, setActioning] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
       apiRequest("/api/faculty/stats"),
       apiRequest("/api/faculty/verifications?status=pending"),
-      apiRequest("/api/faculty/today-schedule"),
+      apiRequest("/api/faculty/my-division"),
     ])
-      .then(([s, v, t]) => {
+      .then(([s, v, d]) => {
         setStats(s);
         if (Array.isArray(v)) setPending(v.slice(0, 5));
-        if (Array.isArray(t)) setSchedule(t);
+        if (Array.isArray(d)) setMyDivisions(d);
       })
-      .catch(() => toast.error("Failed to load dashboard"));
+      .catch(() => toast.error("Failed to load dashboard"))
+      .finally(() => setDivisionsLoading(false));
   }, []);
 
   const handleApprove = async (id: string) => {
@@ -70,14 +69,14 @@ const FacultyDashboard = () => {
     finally { setActioning(null); }
   };
 
-  const formatDay = (iso: string) =>
-    new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  const formatDay = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "—";
 
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Faculty Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Attendance verification requests for your lectures</p>
+        <p className="text-sm text-muted-foreground mt-1">Attendance verification requests routed to you as class teacher</p>
       </div>
 
       {/* Stats */}
@@ -141,13 +140,14 @@ const FacultyDashboard = () => {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{r.student_id?.name}</p>
-                      <p className="text-xs text-muted-foreground">{r.student_id?.userId}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {r.student_id?.userId}
+                        {r.student_id?.division_id && ` · ${r.student_id.division_id.year} ${r.student_id.division_id.name}`}
+                      </p>
                       <div className="flex flex-wrap gap-2 mt-1.5 text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">{r.subject_name}</span>
+                        <span className="font-medium text-foreground">{r.event_id?.name ?? r.event_name}</span>
                         <span>·</span>
-                        <span>{formatDay(r.lecture_date)} {r.lecture_start_time}–{r.lecture_end_time}</span>
-                        <span>·</span>
-                        <span>{r.event_id?.name}</span>
+                        <span>{formatDay(r.event_date)}</span>
                         {r.event_duration_minutes && <span>({r.event_duration_minutes} min)</span>}
                       </div>
                     </div>
@@ -166,34 +166,41 @@ const FacultyDashboard = () => {
           )}
         </div>
 
-        {/* Today's schedule */}
+        {/* Class teacher of */}
         <div className="space-y-3">
           <h2 className="font-semibold flex items-center gap-2">
-            <CalendarDays className="w-4 h-4" />
-            Today's Schedule
+            <GraduationCap className="w-4 h-4" />
+            Class Teacher Of
           </h2>
-          {schedule.length === 0 ? (
+          {divisionsLoading ? (
+            <div className="h-20 bg-muted animate-pulse rounded-xl" />
+          ) : myDivisions.length === 0 ? (
             <Card className="shadow-[var(--shadow-soft)]">
               <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                No lectures today
+                You are not currently assigned as class teacher of any division.
               </CardContent>
             </Card>
           ) : (
-            schedule.map((slot) => (
-              <Card key={slot._id} className="shadow-[var(--shadow-soft)]">
-                <CardContent className="p-3">
-                  <p className="font-medium text-sm">{slot.subject_name}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {slot.start_time}–{slot.end_time}
-                    {slot.room_number && ` · ${slot.room_number}`}
+            myDivisions.map((d) => (
+              <Card key={d._id} className="shadow-[var(--shadow-soft)]">
+                <CardContent className="p-4">
+                  <p className="font-medium text-sm">
+                    {d.year} {d.department_id?.name ?? ""} Division {d.name}
                   </p>
-                  <p className="text-xs text-primary mt-0.5">
-                    {slot.division_id?.division_code}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {d.department_id?.institute_id?.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Academic year {d.academic_year}
                   </p>
                 </CardContent>
               </Card>
             ))
           )}
+          <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+            <ExternalLink className="w-3 h-3 mt-0.5 shrink-0" />
+            Attendance verified for your students routes here automatically — subject faculty are informed offline.
+          </p>
         </div>
       </div>
     </div>

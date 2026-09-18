@@ -41,10 +41,8 @@ interface RegisteredEvent {
 
 interface VerificationRequest {
   _id: string;
-  subject_name: string;
-  lecture_date: string;
-  lecture_start_time: string;
-  lecture_end_time: string;
+  event_name: string;
+  event_date: string | null;
   event_id: { name: string } | null;
   faculty_id: { full_name: string; faculty_code: string } | null;
   status: "pending" | "approved" | "rejected";
@@ -397,7 +395,7 @@ const Dashboard = () => {
               Faculty Attendance Status
             </h2>
             <p className="text-sm text-muted-foreground -mt-2">
-              Faculty need to verify your attendance for lectures missed during club events.
+              Your class teacher needs to verify your attendance for club events.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {verifications.map((vr) => (
@@ -405,11 +403,11 @@ const Dashboard = () => {
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{vr.subject_name}</p>
+                        <p className="font-medium text-sm truncate">{vr.event_id?.name ?? vr.event_name}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {vr.faculty_id?.full_name} · {new Date(vr.lecture_date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })} {vr.lecture_start_time}–{vr.lecture_end_time}
+                          Class teacher: {vr.faculty_id?.full_name ?? "—"}
+                          {vr.event_date && ` · ${new Date(vr.event_date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}`}
                         </p>
-                        <p className="text-xs text-muted-foreground">{vr.event_id?.name}</p>
                         {vr.status === "rejected" && vr.rejection_reason && (
                           <p className="text-xs text-destructive mt-1 bg-destructive/5 border border-destructive/20 rounded px-2 py-1">
                             Rejected: {vr.rejection_reason}

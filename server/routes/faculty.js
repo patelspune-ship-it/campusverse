@@ -1,8 +1,8 @@
 import express from "express";
 import { verifyToken } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
-import Faculty   from "../models/Faculty.js";
-import Timetable from "../models/Timetable.js";
+import Faculty  from "../models/Faculty.js";
+import Division from "../models/Division.js";
 import AttendanceVerificationRequest from "../models/AttendanceVerificationRequest.js";
 import User from "../models/User.js";
 import { sendPushNotification } from "../services/pushNotificationService.js";
@@ -18,8 +18,6 @@ async function getFaculty(req) {
   req.faculty = f;
   return f;
 }
-
-const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 // ── GET /api/faculty/stats ────────────────────────────────────
 router.get("/stats", async (req, res) => {
@@ -40,11 +38,11 @@ router.get("/stats", async (req, res) => {
       }),
     ]);
 
-    // Distinct students taught via timetable slots
-    const slots = await Timetable.find({ faculty_id: faculty._id }).distinct("division_id");
+    // Students in the division(s) this faculty is class teacher of
+    const divisionIds = await Division.find({ class_teacher_id: faculty._id }).distinct("_id");
     const totalStudents = await User.countDocuments({
       role: "student",
-      division_id: { $in: slots },
+      division_id: { $in: divisionIds },
     });
 
     res.json({ pending, approvedMonth, rejectedMonth, totalStudents });
@@ -54,25 +52,24 @@ router.get("/stats", async (req, res) => {
 });
 
 // ── GET /api/faculty/verifications ───────────────────────────
-// Query: status, subject, event_id, date_from, date_to, search (student name)
+// Query: status, event_id, date_from, date_to, search (student name)
 router.get("/verifications", async (req, res) => {
   try {
     const faculty = await getFaculty(req);
-    const { status = "pending", subject, event_id, date_from, date_to, search } = req.query;
+    const { status = "pending", event_id, date_from, date_to, search } = req.query;
 
     const filter = { faculty_id: faculty._id };
     if (status !== "all") filter.status = status;
-    if (subject)   filter.subject_name = new RegExp(subject, "i");
     if (event_id)  filter.event_id = event_id;
     if (date_from || date_to) {
-      filter.lecture_date = {};
-      if (date_from) filter.lecture_date.$gte = new Date(date_from);
-      if (date_to)   filter.lecture_date.$lte = new Date(date_to);
+      filter.event_date = {};
+      if (date_from) filter.event_date.$gte = new Date(date_from);
+      if (date_to)   filter.event_date.$lte = new Date(date_to);
     }
 
     let query = AttendanceVerificationRequest.find(filter)
       .populate("student_id", "name userId division_id")
-      .populate({ path: "student_id", populate: { path: "division_id", select: "division_code year" } })
+      .populate({ path: "student_id", populate: { path: "division_id", select: "name year" } })
       .populate("event_id", "name club_id")
       .populate({ path: "event_id", populate: { path: "club_id", select: "name" } })
       .sort({ created_at: -1 })
@@ -127,7 +124,7 @@ router.patch("/verifications/:id/approve", async (req, res) => {
     sendPushNotification(
       avr.student_id,
       "OD Approved",
-      `Your OD for ${avr.subject_name} was approved.`,
+      `Your OD for ${avr.event_name} was approved.`,
       { type: "verification_decision" }
     ).catch(() => {});
 
@@ -154,7 +151,7 @@ router.patch("/verifications/:id/reject", async (req, res) => {
     sendPushNotification(
       avr.student_id,
       "OD Rejected",
-      `Your OD for ${avr.subject_name} was rejected.`,
+      `Your OD for ${avr.event_name} was rejected.`,
       { type: "verification_decision" }
     ).catch(() => {});
 
@@ -182,33 +179,14 @@ router.post("/verifications/bulk-approve", async (req, res) => {
   }
 });
 
-// ── GET /api/faculty/timetable ───────────────────────────────
-router.get("/timetable", async (req, res) => {
+// ── GET /api/faculty/my-division ─────────────────────────────
+// The division(s) this faculty is class teacher of.
+router.get("/my-division", async (req, res) => {
   try {
     const faculty = await getFaculty(req);
-    const slots = await Timetable.find({ faculty_id: faculty._id, slot_type: "lecture" })
-      .populate("division_id", "division_code year department semester")
-      .sort({ day: 1, start_time: 1 });
-    res.json(slots);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// ── GET /api/faculty/today-schedule ──────────────────────────
-router.get("/today-schedule", async (req, res) => {
-  try {
-    const faculty  = await getFaculty(req);
-    const DAYS_ARR = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    const today    = DAYS_ARR[new Date().getDay()];
-
-    const slots = await Timetable.find({
-      faculty_id: faculty._id, day: today, slot_type: "lecture",
-    })
-      .populate("division_id", "division_code year department")
-      .sort({ start_time: 1 });
-
-    res.json(slots);
+    const divisions = await Division.find({ class_teacher_id: faculty._id })
+      .populate({ path: "department_id", select: "name code institute_id", populate: { path: "institute_id", select: "name code" } });
+    res.json(divisions);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

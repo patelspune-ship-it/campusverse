@@ -4,6 +4,7 @@ import { requireRole } from "../middleware/rbac.js";
 import Registration from "../models/Registration.js";
 import Event        from "../models/Event.js";
 import User         from "../models/User.js";
+import Division     from "../models/Division.js";
 import AttendanceVerificationRequest from "../models/AttendanceVerificationRequest.js";
 
 const router = express.Router();
@@ -164,6 +165,68 @@ router.get("/my-verifications", async (req, res) => {
       .populate("event_id", "name")
       .sort({ created_at: -1 });
     res.json(avrs);
+  } catch {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ─── MY DIVISION / CLASS TEACHER ─────────────────────────────
+// GET /api/student/my-division
+// Mirrors the /api/faculty/my-division populate pattern. Returns clear
+// null/flag fields instead of erroring when the student has no division
+// assigned, or their division has no class teacher yet.
+router.get("/my-division", async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("division_id");
+
+    if (!user?.division_id) {
+      return res.json({
+        has_division: false,
+        division: null,
+        has_class_teacher: false,
+        class_teacher: null,
+      });
+    }
+
+    const division = await Division.findById(user.division_id)
+      .populate({
+        path: "department_id",
+        select: "name code institute_id",
+        populate: { path: "institute_id", select: "name" },
+      })
+      .populate("class_teacher_id", "full_name faculty_code");
+
+    if (!division) {
+      return res.json({
+        has_division: false,
+        division: null,
+        has_class_teacher: false,
+        class_teacher: null,
+      });
+    }
+
+    res.json({
+      has_division: true,
+      division: {
+        _id:  division._id,
+        name: division.name,
+        year: division.year,
+        department: division.department_id
+          ? { _id: division.department_id._id, name: division.department_id.name, code: division.department_id.code }
+          : null,
+        institute: division.department_id?.institute_id
+          ? { _id: division.department_id.institute_id._id, name: division.department_id.institute_id.name }
+          : null,
+      },
+      has_class_teacher: !!division.class_teacher_id,
+      class_teacher: division.class_teacher_id
+        ? {
+            _id:          division.class_teacher_id._id,
+            full_name:    division.class_teacher_id.full_name,
+            faculty_code: division.class_teacher_id.faculty_code,
+          }
+        : null,
+    });
   } catch {
     res.status(500).json({ message: "Server error" });
   }

@@ -1,32 +1,31 @@
 import { useEffect, useState } from "react";
-import { CheckCircle, Filter, Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { CheckCircle, Filter, Search, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { apiRequest } from "@/lib/api";
 
 interface AVR {
   _id: string;
-  student_id: { name: string; userId: string; division_id?: { division_code: string } };
-  subject_name: string;
-  lecture_date: string;
-  lecture_start_time: string;
-  lecture_end_time: string;
+  student_id: { name: string; userId: string; division_id?: { name: string; year: string } };
   event_id: { name: string; club_id?: { name: string } };
+  event_name: string;
+  event_date: string | null;
+  event_entry_time: string | null;
+  event_exit_time: string | null;
   event_duration_minutes: number | null;
+  certificate_id: string | null;
   faculty_action_at: string;
 }
 
 const Approved = () => {
+  const navigate = useNavigate();
   const [rows, setRows]     = useState<AVR[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState("");
-  const [subjectFilter, setSubjectFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo]     = useState("");
 
@@ -43,10 +42,7 @@ const Approved = () => {
 
   useEffect(() => { fetchRows(); }, []);
 
-  const subjects = [...new Set(rows.map((r) => r.subject_name))].sort();
-
   const filtered = rows.filter((r) => {
-    if (subjectFilter !== "all" && r.subject_name !== subjectFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -58,8 +54,11 @@ const Approved = () => {
     return true;
   });
 
-  const fmt = (iso: string) =>
-    new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  const fmt = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "—";
+
+  const fmtTime = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—";
 
   return (
     <div className="p-6 space-y-6">
@@ -73,14 +72,7 @@ const Approved = () => {
           <CardTitle className="text-sm font-semibold flex items-center gap-2"><Filter className="w-4 h-4" /> Filters</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-              <SelectTrigger className="h-10"><SelectValue placeholder="All subjects" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Subjects</SelectItem>
-                {subjects.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input type="date" className="h-10" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             <Input type="date" className="h-10" value={dateTo}   onChange={(e) => setDateTo(e.target.value)} />
           </div>
@@ -90,7 +82,7 @@ const Approved = () => {
               <Input placeholder="Search…" className="h-10 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <Button onClick={fetchRows} className="h-10">Apply</Button>
-            <Button variant="outline" className="h-10" onClick={() => { setSubjectFilter("all"); setDateFrom(""); setDateTo(""); setSearch(""); }}>Reset</Button>
+            <Button variant="outline" className="h-10" onClick={() => { setDateFrom(""); setDateTo(""); setSearch(""); }}>Reset</Button>
           </div>
         </CardContent>
       </Card>
@@ -112,11 +104,23 @@ const Approved = () => {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-semibold text-sm">{r.student_id?.name}</p>
-                    <p className="text-xs text-muted-foreground">{r.student_id?.userId} · {r.student_id?.division_id?.division_code}</p>
-                    <div className="mt-1.5 flex flex-wrap gap-x-4 text-xs text-muted-foreground">
-                      <span><span className="text-foreground font-medium">{r.subject_name}</span></span>
-                      <span>{fmt(r.lecture_date)} {r.lecture_start_time}–{r.lecture_end_time}</span>
-                      <span>{r.event_id?.name}</span>
+                    <p className="text-xs text-muted-foreground">
+                      {r.student_id?.userId}
+                      {r.student_id?.division_id && ` · ${r.student_id.division_id.year} ${r.student_id.division_id.name}`}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span className="text-foreground font-medium">{r.event_id?.name ?? r.event_name}</span>
+                      <span>{fmt(r.event_date)}</span>
+                      <span>Entry–Exit: {fmtTime(r.event_entry_time)}–{fmtTime(r.event_exit_time)}</span>
+                      {r.event_duration_minutes && <span>{r.event_duration_minutes} min</span>}
+                      {r.certificate_id && (
+                        <button
+                          className="text-primary underline font-mono"
+                          onClick={() => navigate(`/verify/${r.certificate_id}`)}
+                        >
+                          {r.certificate_id} <ExternalLink className="w-3 h-3 inline" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 text-xs shrink-0">

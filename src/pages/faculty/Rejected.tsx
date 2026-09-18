@@ -5,19 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { apiRequest } from "@/lib/api";
 
 interface AVR {
   _id: string;
-  student_id: { name: string; userId: string; division_id?: { division_code: string } };
-  subject_name: string;
-  lecture_date: string;
-  lecture_start_time: string;
-  lecture_end_time: string;
+  student_id: { name: string; userId: string; division_id?: { name: string; year: string } };
   event_id: { name: string; club_id?: { name: string } };
+  event_name: string;
+  event_date: string | null;
   rejection_reason: string | null;
   faculty_action_at: string;
 }
@@ -26,7 +21,6 @@ const Rejected = () => {
   const [rows, setRows]     = useState<AVR[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState("");
-  const [subjectFilter, setSubjectFilter] = useState("all");
 
   const fetchRows = () => {
     setLoading(true);
@@ -38,10 +32,7 @@ const Rejected = () => {
 
   useEffect(() => { fetchRows(); }, []);
 
-  const subjects = [...new Set(rows.map((r) => r.subject_name))].sort();
-
   const filtered = rows.filter((r) => {
-    if (subjectFilter !== "all" && r.subject_name !== subjectFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -52,8 +43,8 @@ const Rejected = () => {
     return true;
   });
 
-  const fmt = (iso: string) =>
-    new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  const fmt = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "—";
 
   return (
     <div className="p-6 space-y-6">
@@ -68,18 +59,11 @@ const Rejected = () => {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-3">
-            <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-              <SelectTrigger className="h-10 w-48"><SelectValue placeholder="All subjects" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Subjects</SelectItem>
-                {subjects.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Search student…" className="h-10 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            <Button variant="outline" className="h-10" onClick={() => { setSubjectFilter("all"); setSearch(""); }}>Reset</Button>
+            <Button variant="outline" className="h-10" onClick={() => setSearch("")}>Reset</Button>
           </div>
         </CardContent>
       </Card>
@@ -101,16 +85,18 @@ const Rejected = () => {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-semibold text-sm">{r.student_id?.name}</p>
-                    <p className="text-xs text-muted-foreground">{r.student_id?.userId} · {r.student_id?.division_id?.division_code}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.student_id?.userId}
+                      {r.student_id?.division_id && ` · ${r.student_id.division_id.year} ${r.student_id.division_id.name}`}
+                    </p>
                   </div>
                   <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 text-xs shrink-0">
                     Rejected
                   </Badge>
                 </div>
                 <div className="flex flex-wrap gap-x-4 text-xs text-muted-foreground">
-                  <span><span className="text-foreground font-medium">{r.subject_name}</span></span>
-                  <span>{fmt(r.lecture_date)} {r.lecture_start_time}–{r.lecture_end_time}</span>
-                  <span>{r.event_id?.name}</span>
+                  <span className="text-foreground font-medium">{r.event_id?.name ?? r.event_name}</span>
+                  <span>{fmt(r.event_date)}</span>
                 </div>
                 {r.rejection_reason && (
                   <div className="mt-1 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded px-3 py-1.5">

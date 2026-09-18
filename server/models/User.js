@@ -30,14 +30,14 @@ const userSchema = new mongoose.Schema({
   must_change_password: { type: Boolean, default: false },
 
   // Student profile fields (filled during self-signup)
-  name:       { type: String, default: null },
-  department: { type: String, default: null },
-  year:       { type: String, default: null }, // "1" – "5"
+  name: { type: String, default: null },
 
   // true = user has completed their profile setup
   profile_completed: { type: Boolean, default: false },
 
-  // Students: which timetable division they belong to
+  // Students: their Division. Department/year/institute are NOT stored
+  // separately on the student profile — they're derived through
+  // Division → Department → Institute.
   division_id: { type: mongoose.Schema.Types.ObjectId, ref: "Division", default: null },
 
   // Faculty users: pointer to their Faculty profile document

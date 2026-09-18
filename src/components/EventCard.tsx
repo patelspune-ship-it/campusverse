@@ -8,9 +8,13 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calendar, MapPin, Users, ImageOff, IndianRupee, QrCode, Download, X } from "lucide-react";
+import {
+  Calendar, MapPin, Users, ImageOff, IndianRupee, QrCode, Download, X,
+  GraduationCap, AlertTriangle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "@/lib/api";
+import { useMyDivision } from "@/hooks/useMyDivision";
 
 export interface EventCardProps {
   id: string;
@@ -47,6 +51,7 @@ const EventCard = ({
 }: EventCardProps) => {
   const navigate = useNavigate();
   const user     = JSON.parse(localStorage.getItem("cv_user") || "null");
+  const { data: myDivision, loading: divisionLoading } = useMyDivision();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [agreed, setAgreed]         = useState(false);
@@ -277,6 +282,33 @@ const EventCard = ({
                 </span>
               </div>
             </div>
+
+            {/* Class-teacher routing notice — informational only, never blocks registration */}
+            {divisionLoading ? (
+              <div className="h-9 bg-muted animate-pulse rounded-lg" />
+            ) : !myDivision?.has_division ? (
+              <div className="flex items-start gap-2 rounded-lg border border-yellow-400/40 bg-yellow-50 dark:bg-yellow-900/10 px-3 py-2.5">
+                <AlertTriangle className="w-4 h-4 text-yellow-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-yellow-800 dark:text-yellow-400">
+                  You haven't been assigned to a division yet. Contact your administrator.
+                </p>
+              </div>
+            ) : !myDivision.has_class_teacher ? (
+              <div className="flex items-start gap-2 rounded-lg border border-yellow-400/40 bg-yellow-50 dark:bg-yellow-900/10 px-3 py-2.5">
+                <AlertTriangle className="w-4 h-4 text-yellow-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-yellow-800 dark:text-yellow-400">
+                  Your division doesn't have a class teacher assigned yet. Contact your administrator.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
+                <GraduationCap className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  Attendance verification will be sent to your class teacher:{" "}
+                  <span className="font-medium text-foreground">{myDivision.class_teacher?.full_name}</span>
+                </p>
+              </div>
+            )}
 
             <div className="flex items-start gap-3">
               <Checkbox

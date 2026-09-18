@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Clock, Calendar, Building2, Users,
-  University, Settings, LogOut, ShieldCheck, Menu, X, CheckSquare,
+  University, Settings, LogOut, ShieldCheck, Menu, X, CheckSquare, Network,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ const AdminLayout = () => {
     { label: "All Clubs",          icon: Building2,       to: "/admin/clubs"     },
     { label: "All Students",       icon: Users,           to: "/admin/students"      },
     { label: "Institutes",         icon: University,      to: "/admin/institutes"    },
+    { label: "Hierarchy",          icon: Network,         to: "/admin/hierarchy"     },
     { label: "Verifications",      icon: CheckSquare,     to: "/admin/verifications" },
     { label: "Settings",           icon: Settings,        to: "/admin/settings"      },
   ];
