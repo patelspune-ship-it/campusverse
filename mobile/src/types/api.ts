@@ -22,7 +22,9 @@ export type EventCategory = "technical" | "cultural" | "sports" | "other";
 // GET /club/events — the club admin's own events (all statuses, no registration count).
 export type ClubEvent = Event & { status: EventStatus; is_past_event: boolean };
 
-export type CreateEventPayload = { name: string; description: string; date: string; start_time: string; end_time: string; venue: string; max_participants: number; registration_fee?: number; category: EventCategory };
+// venue_id replaces the old free-text venue — the backend derives the
+// display string from the chosen Venue, so the client never sends `venue`.
+export type CreateEventPayload = { name: string; description: string; date: string; start_time: string; end_time: string; venue_id: string; max_participants: number; registration_fee?: number; category: EventCategory };
 
 // GET /club/events/scanner-list
 export type ScannerEvent = { _id: string; name: string; date: string; start_time?: string; end_time?: string; venue: string };
@@ -98,3 +100,142 @@ export type AdminEvent = Event & { status: EventStatus; is_past_event: boolean; 
 
 // GET /admin/clubs?institute_id=&category=&search=
 export type AdminClub = { _id: string; name: string; category: EventCategory | null; logo_url: string | null; profile_completed: boolean; eventCount: number; institute_id: { _id: string; name: string; code: string } | null; admin: { userId: string; email: string } | null };
+
+export type BudgetRequestType = "annual" | "event";
+export type BudgetStatus = "pending" | "approved" | "rejected" | "withdrawn";
+export type BudgetBreakdownItem = { item: string; cost: number; _id?: string };
+
+// GET /club/budget-requests — club_id is NOT populated on the club's own
+// list (it's implicitly their own club); GET /admin/budget-requests DOES
+// populate it, hence the union.
+export type BudgetRequest = {
+  _id: string;
+  club_id: { _id: string; name: string; logo_url: string | null } | string | null;
+  requested_by: { _id: string; userId: string; email: string } | null;
+  title: string;
+  request_type: BudgetRequestType;
+  event_id: { _id: string; name: string; date: string } | null;
+  amount_requested: number;
+  amount_approved: number | null;
+  purpose: string;
+  breakdown: BudgetBreakdownItem[];
+  academic_year: string;
+  status: BudgetStatus;
+  admin_remarks: string | null;
+  actioned_by: { _id: string; userId: string; email: string } | null;
+  actioned_at: string | null;
+  created_at: string;
+};
+
+export type CreateBudgetRequestPayload = {
+  title: string;
+  request_type: BudgetRequestType;
+  event_id?: string;
+  amount_requested: number;
+  purpose: string;
+  breakdown?: { item: string; cost: number }[];
+  academic_year: string;
+};
+
+// request_type is immutable after creation (mirrors the backend)
+export type UpdateBudgetRequestPayload = Partial<Omit<CreateBudgetRequestPayload, "request_type">>;
+
+// GET /admin/budget-stats
+export type BudgetStats = {
+  totalRequested: number;
+  totalApproved: number;
+  pendingCount: number;
+  byAcademicYear: {
+    academic_year: string;
+    totalRequested: number;
+    totalApproved: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    count: number;
+  }[];
+};
+
+export type VenueType = "auditorium" | "seminar_hall" | "classroom" | "lab" | "open_ground" | "sports_facility" | "other";
+export type VenueBookingType = "event" | "block";
+export type VenueBookingStatus = "pending" | "approved" | "rejected" | "cancelled";
+
+// GET /club/venues | GET /admin/venues
+export type Venue = {
+  _id: string;
+  name: string;
+  code: string | null;
+  capacity: number;
+  venue_type: VenueType;
+  location: string | null;
+  amenities: string[];
+  is_active: boolean;
+};
+
+// GET /club/venues/:id/availability | GET /club/venue-bookings | GET /admin/venue-bookings
+export type VenueBooking = {
+  _id: string;
+  venue_id: { _id: string; name: string; venue_type?: VenueType; capacity?: number } | string | null;
+  booking_type: VenueBookingType;
+  event_id: { _id: string; name: string; status?: string } | null;
+  club_id: { _id: string; name: string } | null;
+  title: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  status: VenueBookingStatus;
+  admin_remarks: string | null;
+};
+
+// Result shape from GET /admin/venue-bookings/conflicts and the
+// `conflicts` field returned alongside create/approve/edit responses.
+export type VenueConflict = {
+  _id: string;
+  title: string;
+  booking_type: VenueBookingType;
+  club_name: string | null;
+  event_name: string | null;
+  start_time: string;
+  end_time: string;
+};
+
+export type DriveStatus = "draft" | "open" | "closed";
+export type ApplicationStage = "applied" | "shortlisted" | "interview_scheduled" | "interviewed" | "selected" | "rejected";
+export type DriveQuestion = { question: string; required: boolean };
+
+// GET /student/recruitment-drives | GET /club/recruitment-drives
+export type RecruitmentDrive = {
+  _id: string;
+  club_id: { _id: string; name: string; logo_url: string | null } | string;
+  title: string;
+  description: string | null;
+  roles_open: string[];
+  questions: DriveQuestion[];
+  application_deadline: string;
+  status: DriveStatus;
+  created_at: string;
+};
+
+export type InterviewSlot = { date: string | null; time: string | null; venue: string | null; meeting_link: string | null };
+// Internal only — populated for the club admin view, never returned to students.
+export type InterviewFeedback = { rating: number | null; notes: string | null; recorded_by?: { userId: string } | null; recorded_at: string | null };
+export type StageHistoryEntry = { stage: string; changed_by: { userId: string } | null; changed_at: string; note: string | null };
+export type ApplicationResponse = { question: string; answer: string };
+
+// GET /student/applications | GET /club/applications
+export type Application = {
+  _id: string;
+  drive_id: { _id: string; title: string } | string | null;
+  club_id: { _id: string; name: string; logo_url: string | null } | string | null;
+  student_id: { _id: string; name: string | null; userId: string; email: string | null; mobile: string | null } | string;
+  role_applied_for: string;
+  responses: ApplicationResponse[];
+  stage: ApplicationStage;
+  interview_slot: InterviewSlot;
+  interview_feedback?: InterviewFeedback;
+  stage_history?: StageHistoryEntry[];
+  final_remarks: string | null;
+  created_at: string;
+};
+
+export type ApplyPayload = { drive_id: string; role_applied_for: string; responses: { question: string; answer: string }[] };

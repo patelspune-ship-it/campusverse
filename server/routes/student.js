@@ -6,6 +6,8 @@ import Event        from "../models/Event.js";
 import User         from "../models/User.js";
 import Division     from "../models/Division.js";
 import AttendanceVerificationRequest from "../models/AttendanceVerificationRequest.js";
+import RecruitmentDrive from "../models/RecruitmentDrive.js";
+import Application   from "../models/Application.js";
 
 const router = express.Router();
 router.use(verifyToken, requireRole("student"));
@@ -227,6 +229,105 @@ router.get("/my-division", async (req, res) => {
           }
         : null,
     });
+  } catch {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// RECRUITMENT
+// ═══════════════════════════════════════════════════════════
+
+// ─── OPEN RECRUITMENT DRIVES ──────────────────────────────────
+// GET /api/student/recruitment-drives
+router.get("/recruitment-drives", async (req, res) => {
+  try {
+    const drives = await RecruitmentDrive.find({ status: "open" })
+      .populate("club_id", "name logo_url category")
+      .sort({ application_deadline: 1 });
+    res.json(drives);
+  } catch {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ─── APPLY TO A DRIVE ─────────────────────────────────────────
+// POST /api/student/applications
+router.post("/applications", async (req, res) => {
+  try {
+    const { drive_id, role_applied_for, responses } = req.body;
+    if (!drive_id) return res.status(400).json({ message: "drive_id is required" });
+    if (!role_applied_for?.trim()) return res.status(400).json({ message: "role_applied_for is required" });
+
+    const drive = await RecruitmentDrive.findById(drive_id);
+    if (!drive) return res.status(404).json({ message: "Recruitment drive not found" });
+    if (drive.status !== "open") return res.status(400).json({ message: "This drive is not currently open" });
+    if (drive.application_deadline < new Date()) {
+      return res.status(400).json({ message: "The application deadline has passed" });
+    }
+    if (drive.roles_open.length && !drive.roles_open.includes(role_applied_for)) {
+      return res.status(400).json({ message: "That role is not open on this drive" });
+    }
+
+    const existing = await Application.findOne({ drive_id, student_id: req.user.id });
+    if (existing) return res.status(409).json({ message: "You have already applied to this drive" });
+
+    const answered = new Map((Array.isArray(responses) ? responses : []).map((r) => [r?.question, r?.answer]));
+    for (const q of drive.questions) {
+      if (q.required && !answered.get(q.question)?.trim()) {
+        return res.status(400).json({ message: `Please answer: "${q.question}"` });
+      }
+    }
+    const parsedResponses = drive.questions.map((q) => ({
+      question: q.question,
+      answer:   answered.get(q.question)?.trim() ?? "",
+    }));
+
+    const application = await Application.create({
+      drive_id,
+      club_id:          drive.club_id,
+      student_id:       req.user.id,
+      role_applied_for: role_applied_for.trim(),
+      responses:        parsedResponses,
+      stage:            "applied",
+      stage_history:    [{ stage: "applied", changed_by: req.user.id, note: "Application submitted" }],
+    });
+
+    res.status(201).json({ message: "Application submitted", application });
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: "You have already applied to this drive" });
+    console.error("Create application error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ─── MY APPLICATIONS ───────────────────────────────────────────
+// GET /api/student/applications
+// interview_feedback and stage_history are internal-only (interviewer
+// notes/ratings, staff remarks) and never returned to the student — only
+// the current stage, interview_slot and final_remarks are their business.
+router.get("/applications", async (req, res) => {
+  try {
+    const applications = await Application.find({ student_id: req.user.id })
+      .select("-interview_feedback -stage_history")
+      .populate("drive_id", "title")
+      .populate("club_id", "name logo_url")
+      .sort({ created_at: -1 });
+    res.json(applications);
+  } catch {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET /api/student/applications/:id
+router.get("/applications/:id", async (req, res) => {
+  try {
+    const application = await Application.findOne({ _id: req.params.id, student_id: req.user.id })
+      .select("-interview_feedback -stage_history")
+      .populate("drive_id", "title description")
+      .populate("club_id", "name logo_url");
+    if (!application) return res.status(404).json({ message: "Application not found" });
+    res.json(application);
   } catch {
     res.status(500).json({ message: "Server error" });
   }

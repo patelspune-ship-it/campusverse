@@ -16,6 +16,7 @@ import NotFound   from "./pages/NotFound";
 import ChangePassword      from "./pages/ChangePassword";
 import CertificateVerify   from "./pages/CertificateVerify";
 import StudentCertificates from "./pages/student/Certificates";
+import MyApplications      from "./pages/student/MyApplications";
 
 // Club admin
 import ClubLayout    from "./components/club/ClubLayout";
@@ -27,6 +28,8 @@ import PastEvents    from "./pages/club/PastEvents";
 import AddPastEvent  from "./pages/club/AddPastEvent";
 import Scanner       from "./pages/club/Scanner";
 import EventDetail   from "./pages/club/EventDetail";
+import ClubBudgetRequests from "./pages/club/BudgetRequests";
+import ClubRecruitment    from "./pages/club/Recruitment";
 
 // Super admin
 import AdminLayout        from "./components/admin/AdminLayout";
@@ -38,6 +41,9 @@ import AllStudents        from "./pages/admin/AllStudents";
 import Institutes         from "./pages/admin/Institutes";
 import AdminVerifications from "./pages/admin/Verifications";
 import AdminHierarchy     from "./pages/admin/Hierarchy";
+import AdminBudgetRequests from "./pages/admin/BudgetRequests";
+import AdminVenues       from "./pages/admin/Venues";
+import AdminVenueCalendar from "./pages/admin/VenueCalendar";
 
 // Faculty
 import FacultyLayout        from "./components/faculty/FacultyLayout";
@@ -65,6 +71,7 @@ const App = () => (
           {/* Shared — no layout wrapper */}
           <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/certificates"    element={<StudentCertificates />} />
+          <Route path="/my-applications" element={<MyApplications />} />
           <Route path="/verify/:certId"  element={<CertificateVerify />} />
 
           {/* Club admin — auth guard inside ClubLayout */}
@@ -77,6 +84,8 @@ const App = () => (
             <Route path="events/add-past" element={<AddPastEvent />} />
             <Route path="events/:id"      element={<EventDetail />} />
             <Route path="scanner"         element={<Scanner />} />
+            <Route path="budget"          element={<ClubBudgetRequests />} />
+            <Route path="recruitment"     element={<ClubRecruitment />} />
           </Route>
 
           {/* Super admin — auth guard inside AdminLayout */}
@@ -89,6 +98,9 @@ const App = () => (
             <Route path="institutes"    element={<Institutes />} />
             <Route path="hierarchy"     element={<AdminHierarchy />} />
             <Route path="verifications" element={<AdminVerifications />} />
+            <Route path="budget"        element={<AdminBudgetRequests />} />
+            <Route path="venues"        element={<AdminVenues />} />
+            <Route path="venue-calendar" element={<AdminVenueCalendar />} />
           </Route>
 
           {/* Faculty — auth guard inside FacultyLayout */}

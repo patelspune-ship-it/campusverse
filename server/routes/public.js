@@ -9,6 +9,7 @@ import Institute    from "../models/Institute.js";
 import Registration from "../models/Registration.js";
 import Department   from "../models/Department.js";
 import Division     from "../models/Division.js";
+import RecruitmentDrive from "../models/RecruitmentDrive.js";
 
 const router = express.Router();
 
@@ -73,13 +74,17 @@ router.get("/clubs/:id", async (req, res) => {
     const club = await Club.findById(req.params.id).populate("institute_id", "name code");
     if (!club) return res.status(404).json({ message: "Club not found" });
 
-    const [upcomingEvents, pastEvents] = await Promise.all([
+    const [upcomingEvents, pastEvents, openDrive] = await Promise.all([
       Event.find({
         club_id: club._id, status: "approved",
         date: { $gt: new Date() }, is_past_event: false,
       }).sort({ date: 1 }),
       Event.find({ club_id: club._id, is_past_event: true })
         .sort({ date: -1 }).limit(10),
+      // The drive-based pipeline is now authoritative for recruitment
+      // display; the legacy recruitment_open/contact/message fields on
+      // Club stay as-is and are only a fallback when no drive exists.
+      RecruitmentDrive.findOne({ club_id: club._id, status: "open" }).sort({ created_at: -1 }),
     ]);
 
     const upcomingIds = upcomingEvents.map((e) => e._id);
@@ -98,6 +103,7 @@ router.get("/clubs/:id", async (req, res) => {
         registrationCount: regMap[e._id.toString()] ?? 0,
       })),
       pastEvents: pastEvents.map((e) => e.toObject()),
+      openDrive,
     });
   } catch {
     res.status(500).json({ message: "Server error" });

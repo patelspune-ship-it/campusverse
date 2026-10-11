@@ -3,12 +3,15 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useNavigation } from "@react-navigation/native";
 import { ApiError } from "../../api/client";
 import { getAdminStats } from "../../services/admin";
-import type { AdminStats } from "../../types/api";
+import { getBudgetStats } from "../../services/budget";
+import type { AdminStats, BudgetStats } from "../../types/api";
 import { colors, radius, shadow, spacing } from "../../theme/theme";
+import { formatCurrency } from "../../utils/format";
 
 export function AdminDashboardScreen() {
   const navigation = useNavigation<any>();
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [budgetStats, setBudgetStats] = useState<BudgetStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -17,7 +20,9 @@ export function AdminDashboardScreen() {
     refresh ? setRefreshing(true) : setLoading(true);
     setError("");
     try {
-      setStats(await getAdminStats());
+      const [s, b] = await Promise.all([getAdminStats(), getBudgetStats()]);
+      setStats(s);
+      setBudgetStats(b);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "Could not load platform stats.");
     } finally {
@@ -59,18 +64,27 @@ export function AdminDashboardScreen() {
         <Stat label="Upcoming Events" value={stats?.upcomingEvents} />
       </View>
 
+      <Text style={styles.sectionTitle}>Budget Overview</Text>
+      <View style={styles.statsGrid}>
+        <Stat label="Total Requested" value={budgetStats ? formatCurrency(budgetStats.totalRequested) : "—"} wide />
+        <Stat label="Total Approved" value={budgetStats ? formatCurrency(budgetStats.totalApproved) : "—"} wide />
+        <Stat label="Pending" value={budgetStats?.pendingCount} highlight={!!budgetStats?.pendingCount} />
+      </View>
+
       <Text style={styles.sectionTitle}>Manage</Text>
       <NavRow label="Pending Approvals" count={stats?.pendingEvents} onPress={() => navigation.navigate("AdminPendingApprovals")} />
       <NavRow label="All Events" count={stats?.events} onPress={() => navigation.navigate("AdminAllEvents")} />
       <NavRow label="All Clubs" count={stats?.clubs} onPress={() => navigation.navigate("AdminAllClubs")} />
+      <NavRow label="Budget Requests" count={budgetStats?.pendingCount} onPress={() => navigation.navigate("AdminBudgetRequests")} />
+      <NavRow label="Venue Bookings" onPress={() => navigation.navigate("AdminVenueBookings")} />
     </ScrollView>
   );
 }
 
-function Stat({ label, value, highlight }: { label: string; value?: number; highlight?: boolean }) {
+function Stat({ label, value, highlight, wide }: { label: string; value?: number | string; highlight?: boolean; wide?: boolean }) {
   return (
-    <View style={[styles.stat, highlight && styles.statHighlight]}>
-      <Text style={[styles.statValue, highlight && styles.statValueHighlight]}>{value ?? "—"}</Text>
+    <View style={[styles.stat, wide && styles.statWide, highlight && styles.statHighlight]}>
+      <Text style={[styles.statValue, wide && styles.statValueWide, highlight && styles.statValueHighlight]} numberOfLines={1} adjustsFontSizeToFit>{value ?? "—"}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
@@ -99,8 +113,10 @@ const styles = StyleSheet.create({
   copy: { color: colors.mutedText, fontSize: 13, marginTop: 2, marginBottom: spacing.lg },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   stat: { width: "31%", backgroundColor: colors.surface, borderRadius: radius.md, padding: 12, borderWidth: 1, borderColor: colors.border, ...shadow },
+  statWide: { width: "48%" },
   statHighlight: { borderColor: "#F5D87E", backgroundColor: "#FFF6DB" },
   statValue: { color: colors.primary, fontSize: 20, fontWeight: "800" },
+  statValueWide: { fontSize: 17 },
   statValueHighlight: { color: "#825700" },
   statLabel: { color: colors.mutedText, fontSize: 10, fontWeight: "600", marginTop: 2 },
   sectionTitle: { color: colors.text, fontSize: 15, fontWeight: "800", marginTop: spacing.xl, marginBottom: spacing.sm },

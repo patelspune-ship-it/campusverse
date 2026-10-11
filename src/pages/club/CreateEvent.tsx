@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { ArrowLeft, Upload } from "lucide-react";
+import { ArrowLeft, Upload, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { apiFormData } from "@/lib/api";
+import { apiFormData, apiRequest } from "@/lib/api";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -27,7 +27,7 @@ const schema = z.object({
   }),
   start_time:       z.string().min(1, "Start time is required"),
   end_time:         z.string().min(1, "End time is required"),
-  venue:            z.string().min(2, "Venue is required"),
+  venue_id:         z.string().min(1, "Venue is required"),
   max_participants: z.coerce.number().min(1, "Must allow at least 1 participant"),
   registration_fee: z.coerce.number().min(0).default(0),
   category:         z.string().min(1, "Category is required"),
@@ -35,19 +35,56 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+interface Venue { _id: string; name: string; venue_type: string; capacity: number }
+interface AvailabilityBooking { _id: string; title: string; start_time: string; end_time: string; club_id?: { name: string } | null }
+
+function toMinutes(hhmm: string) {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+function overlaps(aStart: string, aEnd: string, bStart: string, bEnd: string) {
+  return toMinutes(aStart) < toMinutes(bEnd) && toMinutes(aEnd) > toMinutes(bStart);
+}
+
 const CreateEvent = () => {
   const navigate = useNavigate();
   const [posterFile, setPosterFile]     = useState<File | null>(null);
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
   const [loading, setLoading]           = useState(false);
+  const [venues, setVenues]             = useState<Venue[]>([]);
+  const [availability, setAvailability] = useState<AvailabilityBooking[]>([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: "", description: "", date: "", start_time: "", end_time: "",
-      venue: "", max_participants: 50, registration_fee: 0, category: "",
+      venue_id: "", max_participants: 50, registration_fee: 0, category: "",
     },
   });
+
+  const venueId   = form.watch("venue_id");
+  const eventDate = form.watch("date");
+  const startTime = form.watch("start_time");
+  const endTime   = form.watch("end_time");
+
+  useEffect(() => {
+    apiRequest("/api/club/venues")
+      .then((data) => { if (Array.isArray(data)) setVenues(data); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!venueId || !eventDate) { setAvailability([]); return; }
+    setAvailabilityLoading(true);
+    apiRequest(`/api/club/venues/${venueId}/availability?date=${eventDate}`)
+      .then((data) => { if (Array.isArray(data)) setAvailability(data); })
+      .catch(() => setAvailability([]))
+      .finally(() => setAvailabilityLoading(false));
+  }, [venueId, eventDate]);
+
+  const hasConflict = !!startTime && !!endTime &&
+    availability.some((b) => overlaps(startTime, endTime, b.start_time, b.end_time));
 
   const handlePosterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -69,6 +106,9 @@ const CreateEvent = () => {
       const res = await apiFormData("/api/club/events", "POST", fd);
       if (res.event) {
         toast.success("Event submitted for approval!");
+        if (res.venueConflicts?.length) {
+          toast.warning(`Heads up: ${res.venueConflicts.length} other approved booking(s) overlap this venue/time. Admin will review.`);
+        }
         navigate("/club/events");
       } else {
         toast.error(res.message ?? "Failed to create event");
@@ -247,17 +287,56 @@ const CreateEvent = () => {
 
               <FormField
                 control={form.control}
-                name="venue"
+                name="venue_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Venue *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. Seminar Hall, Block A" className="h-11" {...field} />
-                    </FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Select a venue" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {venues.map((v) => (
+                          <SelectItem key={v._id} value={v._id}>
+                            {v.name} — cap. {v.capacity}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* Live availability for the chosen venue/date */}
+              {venueId && eventDate && (
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                  {availabilityLoading ? (
+                    <p className="text-xs text-muted-foreground">Checking availability…</p>
+                  ) : availability.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No other approved bookings for this venue on this date.</p>
+                  ) : (
+                    <>
+                      <p className="text-xs font-medium text-muted-foreground">Existing approved bookings that day:</p>
+                      <ul className="space-y-1">
+                        {availability.map((b) => (
+                          <li key={b._id} className="text-xs text-muted-foreground">
+                            {b.start_time}–{b.end_time} · {b.title}{b.club_id ? ` (${b.club_id.name})` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {hasConflict && (
+                    <div className="flex items-start gap-2 text-xs text-yellow-800 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-400/40 rounded px-2.5 py-2">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      Your chosen time overlaps an existing booking. You can still submit — the admin will review and decide.
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 

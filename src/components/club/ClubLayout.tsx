@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, User, Calendar, History,
-  QrCode, Settings, LogOut, GraduationCap, Menu, X,
+  QrCode, Wallet, Settings, LogOut, GraduationCap, Menu, X, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,8 @@ const navItems = [
   { label: "Events",      icon: Calendar,        to: "/club/events"          },
   { label: "Past Events", icon: History,         to: "/club/events/past"     },
   { label: "Scanner",     icon: QrCode,          to: "/club/scanner"         },
+  { label: "Budget",      icon: Wallet,          to: "/club/budget"          },
+  { label: "Recruitment", icon: Users,           to: "/club/recruitment"     },
   { label: "Settings",    icon: Settings,        to: "/club/settings"        },
 ];
 

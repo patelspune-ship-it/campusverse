@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Home, LayoutDashboard, Users, LogOut } from "lucide-react";
+import { GraduationCap, Home, LayoutDashboard, Users, LogOut, ClipboardList } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -51,6 +51,12 @@ const Header = () => {
             <Users className="w-4 h-4" />
             Clubs
           </Link>
+          {user?.role === "student" && (
+            <Link to="/my-applications" className="flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors">
+              <ClipboardList className="w-4 h-4" />
+              My Applications
+            </Link>
+          )}
         </nav>
 
         {/* AUTH / USER STATE */}

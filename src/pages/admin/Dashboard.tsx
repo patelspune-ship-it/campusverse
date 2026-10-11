@@ -2,17 +2,23 @@ import { useEffect, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import {
   Users, Building2, University, Calendar, Clock, TrendingUp,
-  CheckCircle, XCircle, ImageOff, ArrowRight,
+  CheckCircle, XCircle, ImageOff, ArrowRight, Wallet, MapPin, CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiRequest } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 interface Stats {
   students: number; clubs: number; institutes: number;
   events: number; pendingEvents: number; upcomingEvents: number;
+}
+
+interface BudgetStats {
+  totalRequested: number;
+  totalApproved: number;
+  pendingCount: number;
 }
 
 interface PendingEvent {
@@ -29,19 +35,28 @@ interface ClubPreview {
 const AdminDashboard = () => {
   const { refreshPendingCount } = useOutletContext<any>();
   const [stats, setStats]               = useState<Stats | null>(null);
+  const [budgetStats, setBudgetStats]   = useState<BudgetStats | null>(null);
   const [pending, setPending]           = useState<PendingEvent[]>([]);
   const [clubs, setClubs]               = useState<ClubPreview[]>([]);
   const [actioning, setActioning]       = useState<string | null>(null);
+  const [venueCount, setVenueCount]     = useState<number | null>(null);
+  const [pendingBookings, setPendingBookings] = useState<number | null>(null);
 
   useEffect(() => {
     Promise.all([
       apiRequest("/api/admin/stats"),
       apiRequest("/api/admin/pending-events"),
       apiRequest("/api/admin/clubs"),
-    ]).then(([s, p, c]) => {
+      apiRequest("/api/admin/budget-stats"),
+      apiRequest("/api/admin/venues"),
+      apiRequest("/api/admin/venue-bookings?status=pending"),
+    ]).then(([s, p, c, b, v, vb]) => {
       if (s.students !== undefined) setStats(s);
       if (Array.isArray(p)) setPending(p.slice(0, 5));
       if (Array.isArray(c)) setClubs(c);
+      if (b?.totalRequested !== undefined) setBudgetStats(b);
+      if (Array.isArray(v)) setVenueCount(v.length);
+      if (Array.isArray(vb)) setPendingBookings(vb.length);
     }).catch(() => toast.error("Failed to load dashboard data"));
   }, []);
 
@@ -126,6 +141,99 @@ const AdminDashboard = () => {
         ))}
       </div>
 
+      {/* Budget overview */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">Budget Overview</h2>
+          <Link to="/admin/budget">
+            <Button variant="ghost" size="sm" className="text-xs text-primary gap-1">
+              View all <ArrowRight className="w-3 h-3" />
+            </Button>
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card className="shadow-[var(--shadow-soft)]">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Requested</CardTitle>
+              <Wallet className="w-4 h-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{budgetStats ? formatCurrency(budgetStats.totalRequested) : "—"}</div>
+              <p className="text-xs text-muted-foreground mt-1">across all clubs</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-[var(--shadow-soft)]">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Approved</CardTitle>
+              <CheckCircle className="w-4 h-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{budgetStats ? formatCurrency(budgetStats.totalApproved) : "—"}</div>
+              <p className="text-xs text-muted-foreground mt-1">sanctioned to date</p>
+            </CardContent>
+          </Card>
+          <Card className={cn("shadow-[var(--shadow-soft)]", (budgetStats?.pendingCount ?? 0) > 0 && "border-yellow-400 bg-yellow-50 dark:bg-yellow-900/10")}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Pending Requests</CardTitle>
+              <Clock className={cn("w-4 h-4", (budgetStats?.pendingCount ?? 0) > 0 ? "text-yellow-500" : "text-primary")} />
+            </CardHeader>
+            <CardContent>
+              <div className={cn("text-3xl font-bold", (budgetStats?.pendingCount ?? 0) > 0 && "text-yellow-700 dark:text-yellow-400")}>
+                {budgetStats?.pendingCount ?? "—"}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">awaiting review</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Venue bookings */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">Venue Bookings</h2>
+          <Link to="/admin/venue-calendar">
+            <Button variant="ghost" size="sm" className="text-xs text-primary gap-1">
+              Open Calendar <ArrowRight className="w-3 h-3" />
+            </Button>
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card className="shadow-[var(--shadow-soft)]">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Venues</CardTitle>
+              <MapPin className="w-4 h-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{venueCount ?? "—"}</div>
+              <p className="text-xs text-muted-foreground mt-1">bookable spaces</p>
+            </CardContent>
+          </Card>
+          <Card className={cn("shadow-[var(--shadow-soft)]", (pendingBookings ?? 0) > 0 && "border-yellow-400 bg-yellow-50 dark:bg-yellow-900/10")}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Pending Bookings</CardTitle>
+              <Clock className={cn("w-4 h-4", (pendingBookings ?? 0) > 0 ? "text-yellow-500" : "text-primary")} />
+            </CardHeader>
+            <CardContent>
+              <div className={cn("text-3xl font-bold", (pendingBookings ?? 0) > 0 && "text-yellow-700 dark:text-yellow-400")}>
+                {pendingBookings ?? "—"}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">awaiting review</p>
+            </CardContent>
+          </Card>
+          <Link to="/admin/venue-calendar" className="block">
+            <Card className="shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-strong)] transition-shadow cursor-pointer h-full">
+              <CardContent className="p-5 h-full flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-sm">Venue Calendar</p>
+                  <p className="text-xs text-muted-foreground mt-1">Day, week & month views</p>
+                </div>
+                <CalendarDays className="w-6 h-6 text-primary" />
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Recent Pending Events */}
         <div className="xl:col-span-2 space-y-3">
@@ -206,6 +314,8 @@ const AdminDashboard = () => {
             { label: "All Clubs",         to: "/admin/clubs",     icon: Building2,  count: stats?.clubs         },
             { label: "All Students",      to: "/admin/students",  icon: Users,      count: stats?.students      },
             { label: "Institutes",        to: "/admin/institutes",icon: University, count: stats?.institutes    },
+            { label: "Venues",            to: "/admin/venues",    icon: MapPin,     count: undefined            },
+            { label: "Venue Calendar",    to: "/admin/venue-calendar", icon: CalendarDays, count: undefined     },
           ].map(({ label, to, icon: Icon, count }) => (
             <Link key={to} to={to}>
               <Card className="shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-strong)] transition-shadow cursor-pointer">

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useNavigation } from "@react-navigation/native";
 import { ApiError } from "../../api/client";
 import { createEvent } from "../../services/club";
-import type { EventCategory } from "../../types/api";
+import { getVenueAvailability, getVenues } from "../../services/venues";
+import type { EventCategory, Venue, VenueBooking } from "../../types/api";
 import { colors, radius, spacing } from "../../theme/theme";
 
 const CATEGORIES: EventCategory[] = ["technical", "cultural", "sports", "other"];
@@ -18,6 +19,16 @@ function formatDate(date: Date) {
 function formatTime(date: Date) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
+function isoDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+function toMinutes(hhmm: string) {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+function overlaps(aStart: string, aEnd: string, bStart: string, bEnd: string) {
+  return toMinutes(aStart) < toMinutes(bEnd) && toMinutes(aEnd) > toMinutes(bStart);
+}
 
 export function CreateEventScreen() {
   const navigation = useNavigation<any>();
@@ -25,7 +36,8 @@ export function CreateEventScreen() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<EventCategory | "">("");
-  const [venue, setVenue] = useState("");
+  const [venues, setVenues] = useState<Venue[]>([]);
+  const [venueId, setVenueId] = useState("");
   const [maxParticipants, setMaxParticipants] = useState("50");
   const [registrationFee, setRegistrationFee] = useState("0");
 
@@ -34,9 +46,29 @@ export function CreateEventScreen() {
   const [endTime, setEndTime] = useState(new Date());
   const [pickerOpen, setPickerOpen] = useState<"date" | "start" | "end" | null>(null);
 
+  const [availability, setAvailability] = useState<VenueBooking[]>([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    getVenues().then(setVenues).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!venueId) { setAvailability([]); return; }
+    setAvailabilityLoading(true);
+    getVenueAvailability(venueId, isoDate(date))
+      .then(setAvailability)
+      .catch(() => setAvailability([]))
+      .finally(() => setAvailabilityLoading(false));
+  }, [venueId, date]);
+
+  const startTimeStr = formatTime(startTime);
+  const endTimeStr = formatTime(endTime);
+  const hasConflict = venueId && availability.some((b) => overlaps(startTimeStr, endTimeStr, b.start_time, b.end_time));
 
   const validate = () => {
     const next: Record<string, string> = {};
@@ -44,7 +76,7 @@ export function CreateEventScreen() {
     if (description.trim().length < 10) next.description = "Description must be at least 10 characters.";
     if (!category) next.category = "Choose a category.";
     if (date.getTime() <= Date.now()) next.date = "Date must be in the future.";
-    if (!venue.trim()) next.venue = "Venue is required.";
+    if (!venueId) next.venue = "Select a venue.";
     const maxP = Number(maxParticipants);
     if (!maxP || maxP < 1) next.max_participants = "Must allow at least 1 participant.";
     const fee = Number(registrationFee || 0);
@@ -58,18 +90,21 @@ export function CreateEventScreen() {
     setSubmitError("");
     setSubmitting(true);
     try {
-      await createEvent({
+      const res = await createEvent({
         name: name.trim(),
         description: description.trim(),
         date: date.toISOString(),
-        start_time: formatTime(startTime),
-        end_time: formatTime(endTime),
-        venue: venue.trim(),
+        start_time: startTimeStr,
+        end_time: endTimeStr,
+        venue_id: venueId,
         max_participants: Number(maxParticipants),
         registration_fee: Number(registrationFee || 0),
         category: category as EventCategory,
       });
-      Alert.alert("Event submitted", "Your event was submitted for admin approval.", [
+      const conflictNote = res.venueConflicts?.length
+        ? `\n\nHeads up: ${res.venueConflicts.length} other approved booking(s) overlap this venue/time. Admin will review.`
+        : "";
+      Alert.alert("Event submitted", `Your event was submitted for admin approval.${conflictNote}`, [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (cause) {
@@ -127,8 +162,43 @@ export function CreateEventScreen() {
       </View>
 
       <Field label="Venue *" error={errors.venue}>
-        <TextInput style={styles.input} value={venue} onChangeText={setVenue} placeholder="e.g. Seminar Hall, Block A" placeholderTextColor={colors.mutedText} />
+        {venues.length === 0 ? (
+          <Text style={styles.helperText}>No venues available. Contact your administrator.</Text>
+        ) : (
+          <View style={styles.venueList}>
+            {venues.map((v) => (
+              <Pressable key={v._id} onPress={() => setVenueId(v._id)} style={[styles.venueRow, venueId === v._id && styles.venueRowActive]}>
+                <Text style={[styles.venueRowText, venueId === v._id && styles.venueRowTextActive]} numberOfLines={1}>{v.name}</Text>
+                <Text style={[styles.venueRowMeta, venueId === v._id && styles.venueRowTextActive]}>cap. {v.capacity}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </Field>
+
+      {venueId && (
+        <View style={styles.availabilityBox}>
+          {availabilityLoading ? (
+            <Text style={styles.helperText}>Checking availability…</Text>
+          ) : availability.length === 0 ? (
+            <Text style={styles.helperText}>No other approved bookings for this venue on this date.</Text>
+          ) : (
+            <>
+              <Text style={styles.availabilityTitle}>Existing approved bookings that day:</Text>
+              {availability.map((b) => (
+                <Text key={b._id} style={styles.availabilityLine}>
+                  {b.start_time}–{b.end_time} · {b.title}{b.club_id ? ` (${b.club_id.name})` : ""}
+                </Text>
+              ))}
+            </>
+          )}
+          {!!hasConflict && (
+            <Text style={styles.conflictWarning}>
+              ⚠ Your chosen time overlaps an existing booking. You can still submit — the admin will review and decide.
+            </Text>
+          )}
+        </View>
+      )}
 
       <View style={styles.row}>
         <Field label="Max Participants *" error={errors.max_participants} style={styles.half}>
@@ -195,6 +265,17 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text, fontSize: 13, fontWeight: "600", textTransform: "capitalize" },
   chipTextActive: { color: "white" },
+  helperText: { color: colors.mutedText, fontSize: 12 },
+  venueList: { gap: 6 },
+  venueRow: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 12, backgroundColor: colors.surface, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.sm },
+  venueRowActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  venueRowText: { color: colors.text, fontSize: 14, fontWeight: "700", flex: 1 },
+  venueRowMeta: { color: colors.mutedText, fontSize: 12 },
+  venueRowTextActive: { color: "white" },
+  availabilityBox: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface, padding: 12, gap: 4 },
+  availabilityTitle: { color: colors.mutedText, fontSize: 11.5, fontWeight: "700" },
+  availabilityLine: { color: colors.mutedText, fontSize: 12 },
+  conflictWarning: { color: "#825700", backgroundColor: "#FFF6DB", borderRadius: radius.sm, padding: 8, fontSize: 12, marginTop: 4, lineHeight: 17 },
   submitError: { color: colors.destructive, fontSize: 13, textAlign: "center", marginTop: spacing.xs },
   button: { minHeight: 52, alignItems: "center", justifyContent: "center", borderRadius: radius.md, backgroundColor: colors.primary, marginTop: spacing.md },
   buttonPressed: { opacity: 0.86 },

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Clock, Calendar, Building2, Users,
-  University, Settings, LogOut, ShieldCheck, Menu, X, CheckSquare, Network,
+  University, Settings, LogOut, ShieldCheck, Menu, X, CheckSquare, Network, Wallet,
+  MapPin, CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,9 @@ const AdminLayout = () => {
     { label: "Institutes",         icon: University,      to: "/admin/institutes"    },
     { label: "Hierarchy",          icon: Network,         to: "/admin/hierarchy"     },
     { label: "Verifications",      icon: CheckSquare,     to: "/admin/verifications" },
+    { label: "Budget Requests",    icon: Wallet,          to: "/admin/budget"        },
+    { label: "Venues",             icon: MapPin,          to: "/admin/venues"        },
+    { label: "Venue Calendar",     icon: CalendarDays,    to: "/admin/venue-calendar" },
     { label: "Settings",           icon: Settings,        to: "/admin/settings"      },
   ];
 

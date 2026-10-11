@@ -8,6 +8,11 @@ const eventSchema = new mongoose.Schema(
     start_time:       { type: String, required: true },
     end_time:         { type: String, required: true },
     venue:            { type: String, required: true },
+    // Optional link to a managed Venue. `venue` (free text) stays required
+    // and is always kept in sync with the chosen Venue's name when one is
+    // selected, so old events (venue_id: null) keep working unchanged and
+    // new code can still just read `venue` for display without a populate.
+    venue_id:         { type: mongoose.Schema.Types.ObjectId, ref: "Venue", default: null },
     max_participants: { type: Number, required: true },
     registration_fee: { type: Number, default: 0 },
     poster_url:       { type: String, default: null },

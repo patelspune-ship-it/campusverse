@@ -20,6 +20,13 @@ interface Event {
   is_past_event: boolean;
 }
 
+interface VenueBooking {
+  _id: string;
+  event_id: { _id: string } | null;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  admin_remarks: string | null;
+}
+
 const statusStyle: Record<string, string> = {
   pending:   "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
   approved:  "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
@@ -28,8 +35,16 @@ const statusStyle: Record<string, string> = {
   cancelled: "bg-muted text-muted-foreground",
 };
 
+const venueBookingStyle: Record<string, string> = {
+  pending:  "text-yellow-700 dark:text-yellow-400",
+  approved: "text-green-700 dark:text-green-400",
+  rejected: "text-destructive",
+  cancelled: "text-muted-foreground",
+};
+
 const ClubEvents = () => {
   const [events, setEvents]       = useState<Event[]>([]);
+  const [venueBookings, setVenueBookings] = useState<VenueBooking[]>([]);
   const [loading, setLoading]     = useState(true);
   const [cancelling, setCancelling] = useState<string | null>(null);
 
@@ -40,7 +55,13 @@ const ClubEvents = () => {
       })
       .catch(() => toast.error("Failed to load events"))
       .finally(() => setLoading(false));
+    apiRequest("/api/club/venue-bookings")
+      .then((data) => { if (Array.isArray(data)) setVenueBookings(data); })
+      .catch(() => {});
   }, []);
+
+  const bookingForEvent = (eventId: string) =>
+    venueBookings.find((b) => b.event_id?._id === eventId);
 
   const handleCancel = async (id: string) => {
     if (!confirm("Are you sure you want to cancel this event? This cannot be undone.")) return;
@@ -163,6 +184,16 @@ const ClubEvents = () => {
                                 </span>
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">{event.venue}</p>
+                              {bookingForEvent(event._id) && (
+                                <p className={`text-xs mt-1 font-medium capitalize ${venueBookingStyle[bookingForEvent(event._id)!.status]}`}>
+                                  Venue booking: {bookingForEvent(event._id)!.status}
+                                  {bookingForEvent(event._id)!.status === "rejected" && bookingForEvent(event._id)!.admin_remarks && (
+                                    <span className="block text-destructive font-normal normal-case mt-0.5">
+                                      {bookingForEvent(event._id)!.admin_remarks}
+                                    </span>
+                                  )}
+                                </p>
+                              )}
                             </div>
                           </div>
 

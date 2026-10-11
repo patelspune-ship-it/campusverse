@@ -10,6 +10,10 @@ import AttendanceVerificationRequest from "../models/AttendanceVerificationReque
 import Department from "../models/Department.js";
 import Division from "../models/Division.js";
 import Faculty from "../models/Faculty.js";
+import BudgetRequest from "../models/BudgetRequest.js";
+import Venue from "../models/Venue.js";
+import VenueBooking from "../models/VenueBooking.js";
+import { checkConflicts } from "../services/venueConflictService.js";
 import { generateCertificatesForEvent } from "../services/certificateService.js";
 import { createVerificationRequestsForEvent } from "../services/attendanceRoutingService.js";
 
@@ -559,6 +563,446 @@ router.delete("/divisions/:id", async (req, res) => {
     }
     await Division.findByIdAndDelete(req.params.id);
     res.json({ message: "Division deleted" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// BUDGET REQUESTS
+// ═══════════════════════════════════════════════════════════
+
+// ─── ALL BUDGET REQUESTS (with filters) ──────────────────────
+// GET /api/admin/budget-requests?status=&academic_year=
+// Withdrawn requests are excluded from the default/"all" queue — only an
+// explicit ?status=withdrawn surfaces them.
+router.get("/budget-requests", async (req, res) => {
+  try {
+    const { status, academic_year } = req.query;
+    const filter = {};
+    if (status && status !== "all") {
+      filter.status = status;
+    } else {
+      filter.status = { $ne: "withdrawn" };
+    }
+    if (academic_year) filter.academic_year = academic_year;
+
+    const requests = await BudgetRequest.find(filter)
+      .populate("club_id", "name logo_url")
+      .populate("requested_by", "userId email")
+      .populate("event_id", "name date")
+      .populate("actioned_by", "userId email")
+      .sort({ created_at: -1 });
+
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ─── APPROVE BUDGET REQUEST ───────────────────────────────────
+// PATCH /api/admin/budget-requests/:id/approve
+// Body: { amount_approved?, admin_remarks? } — amount_approved defaults
+// to amount_requested when omitted.
+router.patch("/budget-requests/:id/approve", async (req, res) => {
+  try {
+    const { amount_approved, admin_remarks } = req.body;
+
+    const existing = await BudgetRequest.findById(req.params.id).select("amount_requested");
+    if (!existing) return res.status(404).json({ message: "Budget request not found" });
+
+    let approvedAmount = existing.amount_requested;
+    if (amount_approved !== undefined && amount_approved !== null && amount_approved !== "") {
+      approvedAmount = Number(amount_approved);
+      if (Number.isNaN(approvedAmount) || approvedAmount < 0) {
+        return res.status(400).json({ message: "amount_approved must be a non-negative number" });
+      }
+    }
+
+    // Scoped to status "pending" so a request already actioned elsewhere
+    // (e.g. two admins acting on it at once) can't be double-approved.
+    const updated = await BudgetRequest.findOneAndUpdate(
+      { _id: req.params.id, status: "pending" },
+      {
+        status:          "approved",
+        amount_approved: approvedAmount,
+        admin_remarks:   admin_remarks?.trim() || null,
+        actioned_by:     req.user.id,
+        actioned_at:     new Date(),
+      },
+      { new: true }
+    ).populate("club_id", "name logo_url");
+
+    if (!updated) return res.status(404).json({ message: "Request not found or already actioned" });
+
+    res.json({ message: "Budget request approved", budgetRequest: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ─── REJECT BUDGET REQUEST ────────────────────────────────────
+// PATCH /api/admin/budget-requests/:id/reject
+// Body: { admin_remarks } — required.
+router.patch("/budget-requests/:id/reject", async (req, res) => {
+  const { admin_remarks } = req.body;
+  if (!admin_remarks?.trim()) {
+    return res.status(400).json({ message: "admin_remarks is required" });
+  }
+  try {
+    const updated = await BudgetRequest.findOneAndUpdate(
+      { _id: req.params.id, status: "pending" },
+      {
+        status:        "rejected",
+        admin_remarks: admin_remarks.trim(),
+        actioned_by:   req.user.id,
+        actioned_at:   new Date(),
+      },
+      { new: true }
+    ).populate("club_id", "name logo_url");
+
+    if (!updated) return res.status(404).json({ message: "Request not found or already actioned" });
+
+    res.json({ message: "Budget request rejected", budgetRequest: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ─── BUDGET STATS FOR ADMIN DASHBOARD ────────────────────────
+// GET /api/admin/budget-stats
+// Withdrawn requests are excluded entirely — they were never actually
+// decided on, so counting their amount_requested would overstate demand.
+router.get("/budget-stats", async (req, res) => {
+  try {
+    const [totals, pendingCount, byYear] = await Promise.all([
+      BudgetRequest.aggregate([
+        { $match: { status: { $ne: "withdrawn" } } },
+        {
+          $group: {
+            _id: null,
+            totalRequested: { $sum: "$amount_requested" },
+            totalApproved:  { $sum: { $cond: [{ $eq: ["$status", "approved"] }, "$amount_approved", 0] } },
+          },
+        },
+      ]),
+      BudgetRequest.countDocuments({ status: "pending" }),
+      BudgetRequest.aggregate([
+        { $match: { status: { $ne: "withdrawn" } } },
+        {
+          $group: {
+            _id:            "$academic_year",
+            totalRequested: { $sum: "$amount_requested" },
+            totalApproved:  { $sum: { $cond: [{ $eq: ["$status", "approved"] }, "$amount_approved", 0] } },
+            pending:        { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+            approved:       { $sum: { $cond: [{ $eq: ["$status", "approved"] }, 1, 0] } },
+            rejected:       { $sum: { $cond: [{ $eq: ["$status", "rejected"] }, 1, 0] } },
+            count:          { $sum: 1 },
+          },
+        },
+        { $sort: { _id: -1 } },
+      ]),
+    ]);
+
+    res.json({
+      totalRequested: totals[0]?.totalRequested ?? 0,
+      totalApproved:  totals[0]?.totalApproved  ?? 0,
+      pendingCount,
+      byAcademicYear: byYear.map((y) => ({
+        academic_year:  y._id,
+        totalRequested: y.totalRequested,
+        totalApproved:  y.totalApproved,
+        pending:        y.pending,
+        approved:       y.approved,
+        rejected:       y.rejected,
+        count:          y.count,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// VENUES & BOOKINGS
+// ═══════════════════════════════════════════════════════════
+
+// ─── VENUES — CRUD ────────────────────────────────────────────
+// GET /api/admin/venues?is_active=
+router.get("/venues", async (req, res) => {
+  try {
+    const { is_active } = req.query;
+    const filter = {};
+    if (is_active !== undefined) filter.is_active = is_active === "true";
+    const venues = await Venue.find(filter).populate("institute_id", "name code").sort({ name: 1 });
+    res.json(venues);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/admin/venues
+router.post("/venues", async (req, res) => {
+  try {
+    const { name, code, institute_id, capacity, venue_type, location, amenities } = req.body;
+    if (!name?.trim() || !institute_id || !capacity || !venue_type) {
+      return res.status(400).json({ message: "name, institute_id, capacity and venue_type are required" });
+    }
+    const venue = await Venue.create({
+      name:      name.trim(),
+      code:      code?.trim() || null,
+      institute_id,
+      capacity:  Number(capacity),
+      venue_type,
+      location:  location?.trim() || null,
+      amenities: Array.isArray(amenities) ? amenities : [],
+    });
+    res.status(201).json(venue);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PATCH /api/admin/venues/:id
+router.patch("/venues/:id", async (req, res) => {
+  try {
+    const { name, code, institute_id, capacity, venue_type, location, amenities, is_active } = req.body;
+    const updates = {};
+    if (name !== undefined)         updates.name = name.trim();
+    if (code !== undefined)         updates.code = code?.trim() || null;
+    if (institute_id !== undefined) updates.institute_id = institute_id;
+    if (capacity !== undefined)     updates.capacity = Number(capacity);
+    if (venue_type !== undefined)   updates.venue_type = venue_type;
+    if (location !== undefined)     updates.location = location?.trim() || null;
+    if (amenities !== undefined)    updates.amenities = Array.isArray(amenities) ? amenities : [];
+    if (is_active !== undefined)    updates.is_active = !!is_active;
+
+    const venue = await Venue.findByIdAndUpdate(req.params.id, updates, { new: true });
+    if (!venue) return res.status(404).json({ message: "Venue not found" });
+    res.json(venue);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PATCH /api/admin/venues/:id/deactivate
+router.patch("/venues/:id/deactivate", async (req, res) => {
+  try {
+    const venue = await Venue.findByIdAndUpdate(req.params.id, { is_active: false }, { new: true });
+    if (!venue) return res.status(404).json({ message: "Venue not found" });
+    res.json({ message: "Venue deactivated", venue });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ─── LIVE CONFLICT CHECK (for the booking form) ──────────────
+// GET /api/admin/venue-bookings/conflicts?venue_id=&date=&start_time=&end_time=&exclude_booking_id=
+// Registered before the other /venue-bookings routes for clarity — it's a
+// distinct literal path segment ("conflicts"), so there's no collision
+// with PATCH /venue-bookings/:id regardless of order, but keeping the
+// read-only/live-check routes together here.
+router.get("/venue-bookings/conflicts", async (req, res) => {
+  try {
+    const { venue_id, date, start_time, end_time, exclude_booking_id } = req.query;
+    if (!venue_id || !date || !start_time || !end_time) {
+      return res.status(400).json({ message: "venue_id, date, start_time and end_time are required" });
+    }
+    const conflicts = await checkConflicts(venue_id, new Date(date), start_time, end_time, exclude_booking_id || null);
+    res.json({ conflicts });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ─── ALL VENUE BOOKINGS (with filters) ───────────────────────
+// GET /api/admin/venue-bookings?date_from=&date_to=&venue_id=&status=
+router.get("/venue-bookings", async (req, res) => {
+  try {
+    const { date_from, date_to, venue_id, status } = req.query;
+    const filter = {};
+    if (venue_id) filter.venue_id = venue_id;
+    if (status && status !== "all") filter.status = status;
+    if (date_from || date_to) {
+      filter.date = {};
+      if (date_from) filter.date.$gte = new Date(date_from);
+      if (date_to)   filter.date.$lte = new Date(date_to);
+    }
+
+    const bookings = await VenueBooking.find(filter)
+      .populate("venue_id", "name venue_type capacity")
+      .populate("club_id", "name logo_url")
+      .populate("event_id", "name status")
+      .populate("created_by", "userId email")
+      .populate("approved_by", "userId email")
+      .sort({ date: 1, start_time: 1 });
+
+    res.json(bookings);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ─── ADMIN-CREATED VENUE BOOKING ──────────────────────────────
+// POST /api/admin/venue-bookings
+// Direct allotment — a standalone block ("Maintenance") when club_id is
+// omitted, or a pre-allocation to a club when it's given. Starts
+// "approved" immediately. Conflicts are returned as a warning but never
+// block creation — the admin can knowingly double-book.
+router.post("/venue-bookings", async (req, res) => {
+  try {
+    const { venue_id, booking_type, event_id, club_id, title, date, start_time, end_time, admin_remarks } = req.body;
+
+    if (!venue_id) return res.status(400).json({ message: "venue_id is required" });
+    if (!["event", "block"].includes(booking_type)) {
+      return res.status(400).json({ message: "booking_type must be 'event' or 'block'" });
+    }
+    if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
+    if (!date || !start_time || !end_time) {
+      return res.status(400).json({ message: "date, start_time and end_time are required" });
+    }
+    if (booking_type === "event" && !event_id) {
+      return res.status(400).json({ message: "event_id is required when booking_type is 'event'" });
+    }
+
+    const venue = await Venue.findById(venue_id);
+    if (!venue) return res.status(404).json({ message: "Venue not found" });
+
+    const bookingDate = new Date(date);
+    const conflicts = await checkConflicts(venue_id, bookingDate, start_time, end_time);
+
+    const booking = await VenueBooking.create({
+      venue_id,
+      booking_type,
+      event_id:      booking_type === "event" ? event_id : null,
+      club_id:       club_id || null,
+      title:         title.trim(),
+      date:          bookingDate,
+      start_time,
+      end_time,
+      status:        "approved",
+      created_by:    req.user.id,
+      approved_by:   req.user.id,
+      admin_remarks: admin_remarks?.trim() || null,
+    });
+
+    const populated = await VenueBooking.findById(booking._id)
+      .populate("venue_id", "name venue_type capacity")
+      .populate("club_id", "name logo_url")
+      .populate("event_id", "name status");
+
+    res.status(201).json({ message: "Venue booking created", booking: populated, conflicts });
+  } catch (err) {
+    console.error("Create venue booking error:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ─── EDIT VENUE BOOKING ────────────────────────────────────────
+// PATCH /api/admin/venue-bookings/:id
+router.patch("/venue-bookings/:id", async (req, res) => {
+  try {
+    const booking = await VenueBooking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Venue booking not found" });
+    if (["cancelled", "rejected"].includes(booking.status)) {
+      return res.status(400).json({ message: "Cannot edit a cancelled or rejected booking" });
+    }
+
+    const { venue_id, title, date, start_time, end_time } = req.body;
+    const updates = {};
+    if (venue_id !== undefined) updates.venue_id = venue_id;
+    if (title !== undefined) {
+      if (!title.trim()) return res.status(400).json({ message: "Title cannot be empty" });
+      updates.title = title.trim();
+    }
+    if (date !== undefined)       updates.date = new Date(date);
+    if (start_time !== undefined) updates.start_time = start_time;
+    if (end_time !== undefined)   updates.end_time = end_time;
+
+    const updated = await VenueBooking.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true })
+      .populate("venue_id", "name venue_type capacity")
+      .populate("club_id", "name logo_url")
+      .populate("event_id", "name status");
+
+    const conflicts = updated.status === "approved"
+      ? await checkConflicts(updated.venue_id._id, updated.date, updated.start_time, updated.end_time, updated._id)
+      : [];
+
+    res.json({ message: "Venue booking updated", booking: updated, conflicts });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ─── APPROVE VENUE BOOKING ─────────────────────────────────────
+// PATCH /api/admin/venue-bookings/:id/approve
+// Scoped to status "pending" so two admins acting on the same request at
+// once can't both succeed — mirrors the BudgetRequest approve pattern.
+router.patch("/venue-bookings/:id/approve", async (req, res) => {
+  try {
+    const existing = await VenueBooking.findById(req.params.id);
+    if (!existing) return res.status(404).json({ message: "Venue booking not found" });
+
+    const conflicts = await checkConflicts(existing.venue_id, existing.date, existing.start_time, existing.end_time, existing._id);
+
+    const updated = await VenueBooking.findOneAndUpdate(
+      { _id: req.params.id, status: "pending" },
+      {
+        status:        "approved",
+        approved_by:   req.user.id,
+        admin_remarks: req.body?.admin_remarks?.trim() || existing.admin_remarks,
+      },
+      { new: true }
+    )
+      .populate("venue_id", "name venue_type capacity")
+      .populate("club_id", "name logo_url")
+      .populate("event_id", "name status");
+
+    if (!updated) return res.status(404).json({ message: "Request not found or already actioned" });
+
+    res.json({ message: "Venue booking approved", booking: updated, conflicts });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ─── REJECT VENUE BOOKING ──────────────────────────────────────
+// PATCH /api/admin/venue-bookings/:id/reject
+router.patch("/venue-bookings/:id/reject", async (req, res) => {
+  const { admin_remarks } = req.body;
+  if (!admin_remarks?.trim()) {
+    return res.status(400).json({ message: "admin_remarks is required" });
+  }
+  try {
+    const updated = await VenueBooking.findOneAndUpdate(
+      { _id: req.params.id, status: "pending" },
+      { status: "rejected", admin_remarks: admin_remarks.trim(), approved_by: req.user.id },
+      { new: true }
+    )
+      .populate("venue_id", "name venue_type capacity")
+      .populate("club_id", "name logo_url")
+      .populate("event_id", "name status");
+
+    if (!updated) return res.status(404).json({ message: "Request not found or already actioned" });
+
+    res.json({ message: "Venue booking rejected", booking: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ─── CANCEL VENUE BOOKING ───────────────────────────────────────
+// PATCH /api/admin/venue-bookings/:id/cancel
+router.patch("/venue-bookings/:id/cancel", async (req, res) => {
+  try {
+    const booking = await VenueBooking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Venue booking not found" });
+    if (booking.status === "cancelled") {
+      return res.status(400).json({ message: "Booking already cancelled" });
+    }
+    booking.status = "cancelled";
+    await booking.save();
+    res.json({ message: "Venue booking cancelled", booking });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

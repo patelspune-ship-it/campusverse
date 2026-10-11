@@ -1,17 +1,37 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import Header from "@/components/Header";
 import EventCard, { EventCardProps } from "@/components/EventCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, MapPin, ImageOff, Instagram, Linkedin, Mail, ArrowLeft, Users } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Calendar, MapPin, ImageOff, Instagram, Linkedin, Mail, ArrowLeft, Users, Briefcase, ClipboardList } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface CoreTeamMember {
   name: string;
   role: string;
+}
+
+interface DriveQuestion { question: string; required: boolean }
+interface OpenDrive {
+  _id: string;
+  title: string;
+  description: string | null;
+  roles_open: string[];
+  questions: DriveQuestion[];
+  application_deadline: string;
+  status: "draft" | "open" | "closed";
 }
 
 interface ClubData {
@@ -30,6 +50,7 @@ interface ClubData {
   recruitment_open: boolean;
   recruitment_contact: string | null;
   recruitment_message: string | null;
+  openDrive: OpenDrive | null;
   upcomingEvents: RawEvent[];
   pastEvents: PastEvent[];
 }
@@ -86,16 +107,25 @@ const ClubDetail = () => {
   const [registeredIds, setRegisteredIds] = useState<Set<string>>(new Set());
   const [loading, setLoading]         = useState(true);
   const [notFound, setNotFound]       = useState(false);
+  const [isStudent, setIsStudent]     = useState(false);
+  const [alreadyApplied, setAlreadyApplied] = useState(false);
+
+  // Apply dialog
+  const [applyOpen, setApplyOpen]     = useState(false);
+  const [applyRole, setApplyRole]     = useState("");
+  const [applyAnswers, setApplyAnswers] = useState<Record<string, string>>({});
+  const [applying, setApplying]       = useState(false);
 
   useEffect(() => {
     if (!id) return;
     const load = async () => {
       try {
         const data = await apiRequest(`/api/public/clubs/${id}`);
-        // API returns { club: {...}, upcomingEvents: [...], pastEvents: [...] }
+        // API returns { club: {...}, upcomingEvents: [...], pastEvents: [...], openDrive }
         if (data?.club?._id) {
           setClub({
             ...data.club,
+            openDrive:      data.openDrive      ?? null,
             upcomingEvents: data.upcomingEvents ?? [],
             pastEvents:     data.pastEvents     ?? [],
           });
@@ -105,8 +135,16 @@ const ClubDetail = () => {
 
         const user = JSON.parse(localStorage.getItem("cv_user") || "null");
         if (user?.role === "student") {
+          setIsStudent(true);
           const ids = await apiRequest("/api/student/my-event-ids");
           if (Array.isArray(ids)) setRegisteredIds(new Set(ids));
+
+          if (data?.openDrive?._id) {
+            const myApps = await apiRequest("/api/student/applications");
+            if (Array.isArray(myApps)) {
+              setAlreadyApplied(myApps.some((a: any) => a.drive_id?._id === data.openDrive._id || a.drive_id === data.openDrive._id));
+            }
+          }
         }
       } catch {
         setNotFound(true);
@@ -116,6 +154,42 @@ const ClubDetail = () => {
     };
     load();
   }, [id]);
+
+  const openApply = () => {
+    if (!club?.openDrive) return;
+    setApplyRole(club.openDrive.roles_open[0] ?? "General");
+    setApplyAnswers({});
+    setApplyOpen(true);
+  };
+
+  const handleApply = async () => {
+    if (!club?.openDrive) return;
+    for (const q of club.openDrive.questions) {
+      if (q.required && !applyAnswers[q.question]?.trim()) {
+        toast.error(`Please answer: "${q.question}"`);
+        return;
+      }
+    }
+    setApplying(true);
+    try {
+      const res = await apiRequest("/api/student/applications", "POST", {
+        drive_id: club.openDrive._id,
+        role_applied_for: applyRole,
+        responses: club.openDrive.questions.map((q) => ({ question: q.question, answer: applyAnswers[q.question] ?? "" })),
+      });
+      if (res?.application) {
+        toast.success("Application submitted!");
+        setApplyOpen(false);
+        setAlreadyApplied(true);
+      } else {
+        toast.error(res?.message ?? "Failed to submit application");
+      }
+    } catch {
+      toast.error("Server error. Please try again.");
+    } finally {
+      setApplying(false);
+    }
+  };
 
   const handleRegisterSuccess = (eventId: string) => {
     setRegisteredIds((prev) => new Set([...prev, eventId]));
@@ -258,8 +332,48 @@ const ClubDetail = () => {
           </Card>
         )}
 
-        {/* Recruitment Banner */}
-        {club.recruitment_open && (
+        {/* Recruitment — real drive takes priority; legacy email banner is a fallback */}
+        {club.openDrive ? (
+          <Card className="border-amber-400 bg-amber-50 dark:bg-amber-950/20 shadow-[var(--shadow-soft)]">
+            <CardContent className="py-6 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-bold text-lg text-amber-800 dark:text-amber-400 flex items-center gap-2">
+                    <Briefcase className="w-5 h-5" /> {club.openDrive.title}
+                  </h3>
+                  {club.openDrive.description && (
+                    <p className="text-amber-700 dark:text-amber-500 mt-1 text-sm">{club.openDrive.description}</p>
+                  )}
+                  <p className="text-xs text-amber-700/80 dark:text-amber-500/80 mt-2">
+                    Apply by {new Date(club.openDrive.application_deadline).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  </p>
+                </div>
+                {isStudent ? (
+                  alreadyApplied ? (
+                    <Button disabled className="bg-green-600 text-white gap-2 flex-shrink-0 cursor-default">
+                      <ClipboardList className="w-4 h-4" /> Applied ✓
+                    </Button>
+                  ) : (
+                    <Button onClick={openApply} className="bg-amber-500 hover:bg-amber-600 text-white gap-2 flex-shrink-0">
+                      <Briefcase className="w-4 h-4" /> Apply Now
+                    </Button>
+                  )
+                ) : (
+                  <Button onClick={() => navigate("/auth")} className="bg-amber-500 hover:bg-amber-600 text-white gap-2 flex-shrink-0">
+                    Sign in to Apply
+                  </Button>
+                )}
+              </div>
+              {club.openDrive.roles_open.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {club.openDrive.roles_open.map((r) => (
+                    <span key={r} className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 px-2.5 py-1 rounded-full">{r}</span>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : club.recruitment_open && (
           <Card className="border-amber-400 bg-amber-50 dark:bg-amber-950/20 shadow-[var(--shadow-soft)]">
             <CardContent className="py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
@@ -383,6 +497,45 @@ const ClubDetail = () => {
           </div>
         )}
       </div>
+
+      {/* Apply dialog */}
+      <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Apply to {club.openDrive?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {club.openDrive && club.openDrive.roles_open.length > 0 && (
+              <div className="space-y-2">
+                <Label>Role *</Label>
+                <Select value={applyRole} onValueChange={setApplyRole}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {club.openDrive.roles_open.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {club.openDrive?.questions.map((q) => (
+              <div key={q.question} className="space-y-2">
+                <Label>{q.question} {q.required && <span className="text-destructive">*</span>}</Label>
+                <Textarea
+                  className="min-h-20 resize-none"
+                  value={applyAnswers[q.question] ?? ""}
+                  onChange={(e) => setApplyAnswers((a) => ({ ...a, [q.question]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApplyOpen(false)} disabled={applying}>Cancel</Button>
+            <Button onClick={handleApply} disabled={applying} className="bg-amber-500 hover:bg-amber-600 text-white">
+              {applying ? "Submitting…" : "Submit Application"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
